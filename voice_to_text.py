@@ -33,12 +33,13 @@ class VoiceToTextService:
     """Main service for voice-to-text input with global hotkey support."""
     
     def __init__(self, model_size='medium', min_duration=0.5, keep_audio=False, 
-                 duration=None, no_hotkey=False):
+                 duration=None, no_hotkey=False, wait_for_key=False):
         self.model_size = model_size
         self.min_duration = min_duration
         self.keep_audio = keep_audio
         self.fixed_duration = duration
         self.no_hotkey = no_hotkey
+        self.wait_for_key = wait_for_key  # Wait for Alt+R to stop
         
         # State tracking
         self.is_recording = False
@@ -65,8 +66,8 @@ class VoiceToTextService:
         print("Voice-to-Text Input Tool")
         print("=" * 60)
         
-        # Skip keyboard device if in no-hotkey mode
-        if not self.no_hotkey:
+        # Skip keyboard device if in no-hotkey mode (unless wait_for_key is set)
+        if not self.no_hotkey or self.wait_for_key:
             # Find keyboard device
             print("\n[1/3] Finding keyboard device...")
             self.keyboard_device = self._find_keyboard_device()
@@ -75,8 +76,8 @@ class VoiceToTextService:
                 print("  Make sure you're in the 'input' group:")
                 print("    sudo usermod -aG input $USER")
                 print("  Then log out and log back in.")
-                print("\n  Alternative: Use --record-once mode (no keyboard access needed):")
-                print("    uv run voice_to_text.py --record-once")
+                print("\n  Alternative: Use --record-once with -d flag (no keyboard access needed):")
+                print("    uv run voice_to_text.py --record-once -d 5")
                 return False
             print(f"✓ Using keyboard: {self.keyboard_device.name}")
             
@@ -118,6 +119,9 @@ class VoiceToTextService:
         if self.no_hotkey:
             if self.fixed_duration:
                 print(f"✓ Ready! Recording will start in 2 seconds ({self.fixed_duration}s duration)")
+            elif self.wait_for_key:
+                print("✓ Ready! Recording will start in 2 seconds")
+                print("  Press Alt+R again to stop recording")
             else:
                 print("✓ Ready! Press Ctrl+C when done recording")
         else:
@@ -494,7 +498,19 @@ class VoiceToTextService:
     def _run_single_recording(self):
         """Run a single recording session without hotkey monitoring."""
         try:
-            if self.fixed_duration:
+            if self.wait_for_key:
+                # Wait for Alt+R to stop recording
+                print("\nStarting recording in 2 seconds...")
+                print("Press Alt+R again to stop recording")
+                time.sleep(2)
+                self._start_recording()
+                
+                # Monitor for Alt+R press
+                self._wait_for_stop_key()
+                
+                if self.is_recording:
+                    self._stop_recording()
+            elif self.fixed_duration:
                 # Fixed duration recording
                 time.sleep(2)  # Give user time to focus the target window
                 self._start_recording()
@@ -527,6 +543,32 @@ class VoiceToTextService:
         
         print("\n👋 Done!")
         return 0
+    
+    def _wait_for_stop_key(self):
+        """Wait for Alt+R press to stop recording."""
+        alt_pressed = False
+        
+        try:
+            for event in self.keyboard_device.read_loop():
+                if not self.is_recording or self.should_exit:
+                    break
+                
+                if event.type == ecodes.EV_KEY:
+                    # Track Alt key
+                    if event.code in [ecodes.KEY_LEFTALT, ecodes.KEY_RIGHTALT]:
+                        if event.value == 1:  # Key down
+                            alt_pressed = True
+                        elif event.value == 0:  # Key up
+                            alt_pressed = False
+                    
+                    # Check for R key press
+                    elif event.code == ecodes.KEY_R:
+                        if event.value == 1 and alt_pressed:  # Alt+R pressed
+                            # Stop recording
+                            break
+                            
+        except Exception as e:
+            print(f"\n✗ Keyboard monitoring error: {e}")
     
     def _run_hotkey_mode(self):
         """Run continuous hotkey monitoring mode."""
@@ -654,17 +696,17 @@ Examples:
   # Hotkey mode (requires input group)
   uv run voice_to_text.py
   
-  # Single recording with fixed 5 second duration (RECOMMENDED)
-  uv run voice_to_text.py --record-once -d 5
-  
-  # Single recording with manual stop (press Ctrl+C)
+  # Single recording - press Alt+R again to stop (RECOMMENDED)
   uv run voice_to_text.py --record-once
   
+  # Single recording with fixed 5 second duration
+  uv run voice_to_text.py --record-once -d 5
+  
   # Use faster model
-  uv run voice_to_text.py --record-once --model small -d 3
+  uv run voice_to_text.py --record-once --model small
   
   # Keep audio files for debugging
-  uv run voice_to_text.py --record-once --keep-audio -d 5
+  uv run voice_to_text.py --record-once --keep-audio
   
   # List available keyboard devices (for hotkey mode)
   uv run voice_to_text.py --list-keyboards
@@ -673,9 +715,9 @@ Desktop Shortcut Setup (GNOME):
   1. Open Settings > Keyboard > Keyboard Shortcuts
   2. Click "+" to add custom shortcut
   3. Name: "Voice to Text"
-  4. Command: /full/path/to/uv run /full/path/to/voice_to_text.py --record-once -d 5
+  4. Command: /full/path/to/uv run /full/path/to/voice_to_text.py --record-once
   5. Set shortcut: Alt+R
-  6. Now Alt+R records for 5 seconds and inserts text at cursor!
+  6. Now Alt+R starts recording, press Alt+R again to stop and insert text!
         """
     )
     
@@ -689,7 +731,7 @@ Desktop Shortcut Setup (GNOME):
     parser.add_argument(
         '-d', '--duration',
         type=float,
-        help='Fixed recording duration in seconds (for --record-once mode)'
+        help='Fixed recording duration in seconds (optional, otherwise press Alt+R to stop)'
     )
     parser.add_argument(
         '--min-duration',
@@ -705,7 +747,7 @@ Desktop Shortcut Setup (GNOME):
     parser.add_argument(
         '--record-once',
         action='store_true',
-        help='Record once and exit (no keyboard monitoring, no input group needed)'
+        help='Record once and exit (requires input group for Alt+R stop)'
     )
     parser.add_argument(
         '--list-keyboards',
@@ -726,7 +768,8 @@ Desktop Shortcut Setup (GNOME):
         min_duration=args.min_duration,
         keep_audio=args.keep_audio,
         duration=args.duration,
-        no_hotkey=args.record_once
+        no_hotkey=args.record_once,
+        wait_for_key=(args.record_once and not args.duration)  # Wait for key if no duration
     )
     
     return service.run()
