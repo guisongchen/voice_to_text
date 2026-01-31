@@ -6,16 +6,16 @@
 
 ### Quick Setup (5 minutes)
 
-1. **Install wl-clipboard**:
+1. **Install xdotool**:
    ```bash
-   sudo apt install wl-clipboard
+   sudo apt install xdotool
    ```
 
 2. **Test the command**:
    ```bash
    cd /home/YOUR_USERNAME/vibe_projects/audio_recorder
    uv run voice_to_text.py --record-once -d 5
-   # Speak after 2 seconds, then press Ctrl+V to paste!
+   # Speak after 2 seconds, text will be inserted!
    ```
 
 3. **Create GNOME Keyboard Shortcut**:
@@ -29,7 +29,7 @@
    - **Shortcut**: Press `Alt+R`
    - Done!
 
-4. **Use it**: Press `Alt+R` anywhere, speak for 5 seconds, press `Ctrl+V` to paste!
+4. **Use it**: Press `Alt+R` anywhere, speak for 5 seconds, text appears!
 
 ---
 
@@ -37,9 +37,9 @@
 
 ### For Secure Mode (Recommended)
 
-1. **Install wl-clipboard**:
+1. **Install xdotool**:
    ```bash
-   sudo apt install wl-clipboard
+   sudo apt install xdotool
    ```
 
 2. **Install Python dependencies**:
@@ -58,8 +58,8 @@ Only follow these if you need continuous monitoring mode:
 
 1. **Install System Dependencies**
 ```bash
-# Install wl-clipboard
-sudo apt install wl-clipboard
+# Install xdotool
+sudo apt install xdotool
 
 # Install PortAudio for microphone recording
 sudo apt-get install portaudio19-dev
@@ -96,7 +96,7 @@ uv run voice_to_text.py --list-keyboards
 uv run voice_to_text.py --record-once -d 5
 
 # After 2 seconds: speak
-# After recording: press Ctrl+V to paste
+# Text automatically inserted at cursor!
 ```
 
 ### Hotkey Mode
@@ -108,7 +108,7 @@ uv run voice_to_text.py
 # 1. Press and hold Alt+R
 # 2. Speak clearly
 # 3. Release Alt+R
-# 4. Press Ctrl+V to paste text
+# 4. Text appears at cursor!
 ```
 
 ### Common Options

@@ -39,9 +39,9 @@ A Python CLI tool to record audio from your microphone and transcribe it to text
    sudo dnf install portaudio-devel
    ```
 
-2. **For voice-to-text tool**, install wl-clipboard (Wayland clipboard tool):
+2. **For voice-to-text tool**, install xdotool (text insertion):
    ```bash
-   sudo apt install wl-clipboard
+   sudo apt install xdotool
    ```
 
 3. **OPTIONAL - For hotkey mode only**, add your user to the input group:
@@ -66,7 +66,7 @@ A Python CLI tool to record audio from your microphone and transcribe it to text
 
 ### ⌨️ Voice-to-Text Input Tool
 
-**NEW!** System-wide voice input with hotkey support. Press `Alt+R` to record speech, transcribe, and automatically copy text to clipboard - works in any application!
+**NEW!** System-wide voice input with hotkey support. Press `Alt+R` to record speech, transcribe, and automatically insert text at your cursor position - works in any application!
 
 **Two Modes Available:**
 - **🔒 Secure Mode** (Recommended): `--record-once` with desktop shortcut - no special permissions needed
@@ -76,9 +76,8 @@ A Python CLI tool to record audio from your microphone and transcribe it to text
 
 **Step 1: Test the tool**
 ```bash
-# Record for 5 seconds, then transcribe and copy to clipboard
+# Record for 5 seconds, then transcribe and insert
 uv run voice_to_text.py --record-once -d 5
-# After it finishes, press Ctrl+V to paste!
 ```
 
 **Step 2: Set up GNOME keyboard shortcut**
@@ -98,7 +97,7 @@ uv run voice_to_text.py --record-once -d 5
 2. **Press Alt+R** - Recording starts, tool counts down 5 seconds
 3. **Speak clearly** - Your speech is being recorded
 4. **Wait** - Transcription happens automatically
-5. **Press Ctrl+V** - Text is pasted from clipboard!
+5. **Text appears** - Inserted at your cursor position!
 
 #### Alternative: Hotkey Mode (Requires Input Group)
 
@@ -128,7 +127,7 @@ Once running:
 1. **Press and hold Alt+R** - Recording starts immediately
 2. **Speak clearly** - Your voice is being recorded
 3. **Release Alt+R** - Recording stops, transcription begins
-4. **Press Ctrl+V** - Text is pasted from clipboard
+4. **Text appears** - Inserted at your cursor position
 
 **Security Warning**: This mode requires `input` group membership which grants access to all keyboard/mouse events.
 
@@ -136,7 +135,7 @@ Once running:
 
 - 🌍 **System-wide**: Works in browser, text editor, terminal, any application
 - 🔒 **Secure Option**: `--record-once` mode needs no special permissions
-- 📋 **Clipboard-based**: Uses wl-clipboard (no sudo needed)
+- ⌨️ **Direct insertion**: Uses xdotool to type text at cursor
 - ⚡ **Fast**: Pre-loaded model, transcription starts immediately
 - 🔒 **Private**: Fully offline, no internet required
 - 🎯 **Accurate**: Uses OpenAI Whisper medium model by default
@@ -205,16 +204,15 @@ sudo usermod -aG input $USER
 - Ensure you used full absolute paths in the command
 - Test the command in terminal first
 - Check `~/.local/bin/uv` exists, or use `which uv` to find the path
-- Make sure wl-clipboard is installed: `sudo apt install wl-clipboard`
+- Make sure xdotool is installed: `sudo apt install xdotool`
 
-**"wl-copy not found" error:**
+**"xdotool not found" error:**
 ```bash
-# Install wl-clipboard
-sudo apt install wl-clipboard
+# Install xdotool
+sudo apt install xdotool
 
 # Test it works
-echo "test" | wl-copy
-wl-paste  # Should output "test"
+xdotool type "test"
 ```
 
 **Alt+R not detected (hotkey mode only):**
@@ -223,11 +221,11 @@ wl-paste  # Should output "test"
 - Make sure you're in the input group
 - Try restarting after adding to input group
 
-**Text not pasting:**
-- Text is copied to clipboard automatically
-- Just press Ctrl+V to paste after recording
-- Test clipboard: `echo "test" | wl-copy && wl-paste`
-- Make sure you're using Wayland (not X11)
+**Text not inserting:**
+- Verify xdotool works: `xdotool type "test"`
+- Make sure the target application has focus and accepts text input
+- Some applications may block automated input (security feature)
+- Try clicking in the text field before pressing Alt+R
 
 **Transcription quality issues:**
 - Speak clearly and at normal pace

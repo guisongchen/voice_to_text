@@ -38,9 +38,9 @@
 | Attribute | Description |
 |-----------|-------------|
 | ID | FR-03 |
-| Target Position | Clipboard (user pastes with Ctrl+V) |
-| Insertion Method | wl-clipboard (wl-copy) - no sudo needed |
-| Compatibility | Any application that accepts clipboard paste |
+| Target Position | Cursor location in the currently focused application |
+| Insertion Method | xdotool (simulated keyboard input) |
+| Compatibility | Any application that accepts text input |
 
 ---
 
@@ -83,8 +83,8 @@
 | Component | Requirement |
 |-----------|-------------|
 | Operating System | Ubuntu 24.04 |
-| Desktop Environment | Wayland (default) |
-| Text Insertion | `wl-clipboard` (wl-copy) |
+| Desktop Environment | X11 or Wayland with XWayland |
+| Text Insertion | `xdotool` |
 | Hotkey Listener | `evdev` (optional, for continuous mode) or desktop shortcuts |
 
 ### 4.2 Whisper Model
@@ -103,5 +103,5 @@
 | AC-01 | Pressing `Alt+R` starts audio recording within 200ms |
 | AC-02 | Releasing `Alt+R` stops recording immediately |
 | AC-03 | Speech is transcribed to text without network connection |
-| AC-04 | Transcribed text is copied to clipboard (paste with Ctrl+V) |
+| AC-04 | Transcribed text is inserted at the current cursor position |
 | AC-05 | Works across different applications (browser, text editor, terminal) |
