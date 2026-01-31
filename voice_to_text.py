@@ -26,12 +26,13 @@ class VoiceToTextService:
     """Main service for voice-to-text input with global hotkey support."""
     
     def __init__(self, model_size='medium', min_duration=0.5, keep_audio=False, 
-                 duration=None, no_hotkey=False):
+                 duration=None, no_hotkey=False, no_beeps=False):
         self.model_size = model_size
         self.min_duration = min_duration
         self.keep_audio = keep_audio
         self.fixed_duration = duration
         self.no_hotkey = no_hotkey
+        self.no_beeps = no_beeps
         
         # State tracking
         self.is_recording = False
@@ -95,6 +96,16 @@ class VoiceToTextService:
         
         # Initialize audio recorder
         self.recorder = AudioRecorder()
+        
+        # Show diagnostic mode info
+        if self.no_beeps or self.keep_audio:
+            print("\n" + "=" * 60)
+            print("DIAGNOSTIC MODE:")
+            if self.no_beeps:
+                print("  • Audio feedback beeps DISABLED")
+            if self.keep_audio:
+                print("  • Recording files will be PRESERVED")
+            print("=" * 60)
         
         print("\n" + "=" * 60)
         if self.no_hotkey:
@@ -212,11 +223,11 @@ class VoiceToTextService:
         if self.is_recording:
             return
         
-        # Play start beep BEFORE starting recording
-        self._play_beep('start')
-        
-        # Short delay for beep to finish (warm-up happens in thread)
-        time.sleep(0.3)
+        # Play start beep BEFORE starting recording (if enabled)
+        if not self.no_beeps:
+            self._play_beep('start')
+            # Short delay for beep to finish (warm-up happens in thread)
+            time.sleep(0.3)
         
         self.is_recording = True
         self.recording_start_time = time.time()
@@ -308,11 +319,11 @@ class VoiceToTextService:
         if self.recording_thread:
             self.recording_thread.join(timeout=3.0)
         
-        # Short delay before beep (stream is already closed cleanly)
-        time.sleep(0.2)
-        
-        # Play finish beep AFTER recording has stopped
-        self._play_beep('finish')
+        # Play finish beep AFTER recording has stopped (if enabled)
+        if not self.no_beeps:
+            # Short delay before beep (stream is already closed cleanly)
+            time.sleep(0.2)
+            self._play_beep('finish')
         
         # Check if recording was successful
         try:
@@ -570,8 +581,21 @@ Examples:
   # Keep audio files for debugging
   uv run voice_to_text.py --record-once --keep-audio -d 5
   
+  # Disable beeps for diagnostics (test if beeps cause issues)
+  uv run voice_to_text.py --record-once --no-beeps -d 5
+  
+  # Full diagnostic mode (no beeps, keep audio file)
+  uv run voice_to_text.py --record-once --no-beeps --keep-audio -d 5
+  
   # List available keyboard devices (for hotkey mode)
   uv run voice_to_text.py --list-keyboards
+
+Diagnostic Workflow:
+  If you hear noise/buzz in recordings:
+  1. Test without beeps: --no-beeps --keep-audio -d 5
+  2. Check saved WAV file with audio player
+  3. If noise is in WAV file: recording issue
+  4. If noise only during playback: beep/output issue
 
 Desktop Shortcut Setup (GNOME):
   1. Open Settings → Keyboard → Keyboard Shortcuts
@@ -604,7 +628,12 @@ Desktop Shortcut Setup (GNOME):
     parser.add_argument(
         '--keep-audio',
         action='store_true',
-        help='Keep audio files instead of deleting them'
+        help='Keep audio files instead of deleting them (for debugging)'
+    )
+    parser.add_argument(
+        '--no-beeps',
+        action='store_true',
+        help='Disable audio feedback beeps (for diagnostic purposes)'
     )
     parser.add_argument(
         '--record-once',
@@ -630,7 +659,8 @@ Desktop Shortcut Setup (GNOME):
         min_duration=args.min_duration,
         keep_audio=args.keep_audio,
         duration=args.duration,
-        no_hotkey=args.record_once
+        no_hotkey=args.record_once,
+        no_beeps=args.no_beeps
     )
     
     return service.run()
