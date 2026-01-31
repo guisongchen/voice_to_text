@@ -215,8 +215,9 @@ class VoiceToTextService:
         # Play start beep BEFORE starting recording
         self._play_beep('start')
         
-        # Wait for beep to finish and audio system to settle (300ms)
-        time.sleep(0.3)
+        # Wait for beep to finish and audio system to settle (500ms)
+        # This also gives user a moment to prepare to speak
+        time.sleep(0.5)
         
         self.is_recording = True
         self.recording_start_time = time.time()
@@ -237,8 +238,7 @@ class VoiceToTextService:
     def _record_audio_thread(self):
         """Background thread for audio recording."""
         try:
-            # Record until stopped
-            # We'll record in chunks and check if we should stop
+            # Open audio stream
             stream = self.recorder.audio.open(
                 format=self.recorder.format,
                 channels=self.recorder.channels,
@@ -247,8 +247,20 @@ class VoiceToTextService:
                 frames_per_buffer=self.recorder.chunk_size
             )
             
+            # WARM-UP: Read and discard initial chunks to let audio system settle
+            # This eliminates initialization noise (clicks, pops, static)
+            warmup_chunks = 10  # ~230ms at default chunk size
+            for _ in range(warmup_chunks):
+                if not self.is_recording:
+                    break
+                try:
+                    stream.read(self.recorder.chunk_size, exception_on_overflow=False)
+                except Exception:
+                    pass
+            
             frames = []
             
+            # Now record the actual audio (system should be stable)
             while self.is_recording:
                 try:
                     data = stream.read(self.recorder.chunk_size, exception_on_overflow=False)
@@ -284,8 +296,9 @@ class VoiceToTextService:
         if self.recording_thread:
             self.recording_thread.join(timeout=2.0)
         
-        # Wait for audio system to settle before playing beep (200ms)
-        time.sleep(0.2)
+        # Wait for audio system to settle before playing beep (500ms)
+        # This ensures recording is fully stopped and buffers are flushed
+        time.sleep(0.5)
         
         # Play finish beep AFTER recording has stopped
         self._play_beep('finish')
