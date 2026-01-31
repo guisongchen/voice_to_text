@@ -54,7 +54,7 @@
 │  (browser, editor, terminal, etc.)          │
 └─────────────────────┬───────────────────────┘
                       ↓
-            Press Alt+R (hold down)
+            Press Alt+R
                       ↓
             ┌─────────────────┐
             │ Start Recording │
@@ -62,7 +62,7 @@
                      ↓
               User speaks
                      ↓
-             Release Alt+R
+             Press Alt+R
                      ↓
             ┌─────────────────┐
             │ Stop Recording  │
@@ -85,9 +85,9 @@
 | Component | Requirement |
 |-----------|-------------|
 | Operating System | Ubuntu 24.04 |
-| Desktop Environment | X11 or Wayland with XWayland |
+| Desktop Environment | X11 |
 | Text Insertion | `xdotool` |
-| Hotkey Listener | Desktop shortcuts (no `evdev` required) |
+| Hotkey Listener | Desktop shortcuts |
 
 ### 4.2 Whisper Model
 

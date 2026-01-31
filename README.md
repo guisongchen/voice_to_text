@@ -44,20 +44,12 @@ A Python CLI tool to record audio from your microphone and transcribe it to text
    sudo apt install xdotool
    ```
 
-3. **OPTIONAL - For hotkey mode only**, add your user to the input group:
-   ```bash
-   sudo usermod -aG input $USER
-   ```
-   **Security Note**: This gives access to all input devices. **Skip this step** if using `--record-once` mode with desktop shortcuts (recommended).
-   
-   **Important**: If you do add yourself to input group, log out and log back in for changes to take effect!
-
-4. Ensure NVIDIA GPU drivers and CUDA are installed:
+3. Ensure NVIDIA GPU drivers and CUDA are installed:
    ```bash
    nvidia-smi  # Should show your GPU
    ```
 
-5. Install Python dependencies with uv:
+4. Install Python dependencies with uv:
    ```bash
    uv sync
    ```
@@ -68,9 +60,8 @@ A Python CLI tool to record audio from your microphone and transcribe it to text
 
 **NEW!** System-wide voice input with hotkey support. Press `Alt+R` to record speech, transcribe, and automatically insert text at your cursor position - works in any application!
 
-**Two Modes Available:**
+**Modes Available:**
 - **🔒 Secure Mode** (Recommended): `--record-once` with desktop shortcut - no special permissions needed
-- **⚡ Hotkey Mode**: Continuous monitoring - requires input group access
 
 #### Quick Start (Secure Mode - Recommended)
 
@@ -108,25 +99,6 @@ uv run voice-to-text --record-once -d 5
 
 **Note:** Audio feedback uses programmatic beeps (880Hz/660Hz tones) that work in all scenarios including desktop shortcuts.
 
-#### Alternative Methods
-
-**Method 1: Keyboard Monitoring (Requires Input Group)**
-```bash
-# Requires: sudo usermod -aG input $USER (then log out/in)
-uv run voice-to-text --record-once
-```
-- Press Alt+R to start, Alt+R to stop
-- Requires input group membership
-
-**Method 2: Hotkey Mode - Press and Hold (Requires Input Group)**
-```bash
-# Start continuous monitoring service
-uv run voice-to-text
-```
-- Hold Alt+R to record, release to stop
-- Requires input group membership
-
-**Security Warning**: Methods requiring input group grant access to all keyboard/mouse events. Use toggle script for better security.
 
 #### Features
 
@@ -165,36 +137,9 @@ uv run voice-to-text --record-once --model large
 uv run voice-to-text --record-once --keep-audio
 ```
 
-**For hotkey mode (requires input group):**
-```bash
-# Continuous monitoring with default settings
-uv run voice-to-text
-
-# With different model
-uv run voice-to-text --model small
-```
-
-**List available keyboard devices (hotkey mode troubleshooting):**
-```bash
-uv run voice-to-text --list-keyboards
-```
-
-**Set minimum recording duration:**
-```bash
-uv run voice-to-text --min-duration 1.0  # Ignore recordings < 1 second
-```
 
 #### Troubleshooting
 
-**"Permission denied" error (hotkey mode only):**
-```bash
-# Option 1: Use secure --record-once mode (RECOMMENDED)
-uv run voice-to-text --record-once -d 5
-
-# Option 2: Add yourself to input group (less secure)
-sudo usermod -aG input $USER
-# Then log out and log back in
-```
 
 **Desktop shortcut not working:**
 - Ensure you used full absolute paths in the command
