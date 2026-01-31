@@ -39,9 +39,9 @@ A Python CLI tool to record audio from your microphone and transcribe it to text
    sudo dnf install portaudio-devel
    ```
 
-2. **For voice-to-text tool**, install ydotool (Wayland text insertion):
+2. **For voice-to-text tool**, install wl-clipboard (Wayland clipboard tool):
    ```bash
-   sudo apt install ydotool
+   sudo apt install wl-clipboard
    ```
 
 3. **OPTIONAL - For hotkey mode only**, add your user to the input group:
@@ -66,18 +66,19 @@ A Python CLI tool to record audio from your microphone and transcribe it to text
 
 ### ⌨️ Voice-to-Text Input Tool
 
-**NEW!** System-wide voice input with hotkey support. Press `Alt+R` to record speech, transcribe, and automatically insert text at your cursor position - works in any application!
+**NEW!** System-wide voice input with hotkey support. Press `Alt+R` to record speech, transcribe, and automatically copy text to clipboard - works in any application!
 
 **Two Modes Available:**
-- **🔒 Secure Mode** (Recommended): `--record-once` with desktop shortcut - no input group needed
+- **🔒 Secure Mode** (Recommended): `--record-once` with desktop shortcut - no special permissions needed
 - **⚡ Hotkey Mode**: Continuous monitoring - requires input group access
 
 #### Quick Start (Secure Mode - Recommended)
 
 **Step 1: Test the tool**
 ```bash
-# Record for 5 seconds, then transcribe and insert
+# Record for 5 seconds, then transcribe and copy to clipboard
 uv run voice_to_text.py --record-once -d 5
+# After it finishes, press Ctrl+V to paste!
 ```
 
 **Step 2: Set up GNOME keyboard shortcut**
@@ -97,7 +98,7 @@ uv run voice_to_text.py --record-once -d 5
 2. **Press Alt+R** - Recording starts, tool counts down 5 seconds
 3. **Speak clearly** - Your speech is being recorded
 4. **Wait** - Transcription happens automatically
-5. **Text appears** - Inserted at your cursor position!
+5. **Press Ctrl+V** - Text is pasted from clipboard!
 
 #### Alternative: Hotkey Mode (Requires Input Group)
 
@@ -127,7 +128,7 @@ Once running:
 1. **Press and hold Alt+R** - Recording starts immediately
 2. **Speak clearly** - Your voice is being recorded
 3. **Release Alt+R** - Recording stops, transcription begins
-4. **Text appears** - Transcribed text is automatically inserted at cursor
+4. **Press Ctrl+V** - Text is pasted from clipboard
 
 **Security Warning**: This mode requires `input` group membership which grants access to all keyboard/mouse events.
 
@@ -135,6 +136,7 @@ Once running:
 
 - 🌍 **System-wide**: Works in browser, text editor, terminal, any application
 - 🔒 **Secure Option**: `--record-once` mode needs no special permissions
+- 📋 **Clipboard-based**: Uses wl-clipboard (no sudo needed)
 - ⚡ **Fast**: Pre-loaded model, transcription starts immediately
 - 🔒 **Private**: Fully offline, no internet required
 - 🎯 **Accurate**: Uses OpenAI Whisper medium model by default
@@ -203,16 +205,16 @@ sudo usermod -aG input $USER
 - Ensure you used full absolute paths in the command
 - Test the command in terminal first
 - Check `~/.local/bin/uv` exists, or use `which uv` to find the path
-- Make sure ydotool daemon is running: `systemctl --user start ydotoold`
+- Make sure wl-clipboard is installed: `sudo apt install wl-clipboard`
 
-**"ydotool not found" error:**
+**"wl-copy not found" error:**
 ```bash
-# Install ydotool
-sudo apt install ydotool
+# Install wl-clipboard
+sudo apt install wl-clipboard
 
-# If text insertion still doesn't work, start the daemon
-systemctl --user start ydotoold
-systemctl --user enable ydotoold  # Auto-start on boot
+# Test it works
+echo "test" | wl-copy
+wl-paste  # Should output "test"
 ```
 
 **Alt+R not detected (hotkey mode only):**
@@ -221,11 +223,11 @@ systemctl --user enable ydotoold  # Auto-start on boot
 - Make sure you're in the input group
 - Try restarting after adding to input group
 
-**Text not inserting:**
-- Verify ydotool works: `ydotool type "test"`
-- If error, start ydotoold: `systemctl --user start ydotoold`
-- Check that the target application accepts keyboard input
-- Try focusing the target window before pressing Alt+R
+**Text not pasting:**
+- Text is copied to clipboard automatically
+- Just press Ctrl+V to paste after recording
+- Test clipboard: `echo "test" | wl-copy && wl-paste`
+- Make sure you're using Wayland (not X11)
 
 **Transcription quality issues:**
 - Speak clearly and at normal pace

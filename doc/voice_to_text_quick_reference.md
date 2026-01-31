@@ -2,22 +2,20 @@
 
 ## 🔒 Secure Mode (Recommended)
 
-**No input group permissions needed!** Use `--record-once` mode with desktop shortcuts.
+**No special permissions needed!** Use `--record-once` mode with desktop shortcuts.
 
 ### Quick Setup (5 minutes)
 
-1. **Install ydotool**:
+1. **Install wl-clipboard**:
    ```bash
-   sudo apt install ydotool
-   systemctl --user start ydotoold
-   systemctl --user enable ydotoold
+   sudo apt install wl-clipboard
    ```
 
 2. **Test the command**:
    ```bash
    cd /home/YOUR_USERNAME/vibe_projects/audio_recorder
    uv run voice_to_text.py --record-once -d 5
-   # Speak after 2 seconds, text will be inserted!
+   # Speak after 2 seconds, then press Ctrl+V to paste!
    ```
 
 3. **Create GNOME Keyboard Shortcut**:
@@ -31,7 +29,7 @@
    - **Shortcut**: Press `Alt+R`
    - Done!
 
-4. **Use it**: Press `Alt+R` anywhere, speak for 5 seconds, text appears!
+4. **Use it**: Press `Alt+R` anywhere, speak for 5 seconds, press `Ctrl+V` to paste!
 
 ---
 
@@ -39,11 +37,9 @@
 
 ### For Secure Mode (Recommended)
 
-1. **Install ydotool**:
+1. **Install wl-clipboard**:
    ```bash
-   sudo apt install ydotool
-   systemctl --user start ydotoold
-   systemctl --user enable ydotoold
+   sudo apt install wl-clipboard
    ```
 
 2. **Install Python dependencies**:
@@ -54,7 +50,7 @@
 
 3. **Set up desktop shortcut** (see above)
 
-**No input group needed!** ✅ More secure.
+**No special permissions needed!** ✅ More secure, easier to set up.
 
 ### For Hotkey Mode (Less Secure)
 
@@ -62,14 +58,14 @@ Only follow these if you need continuous monitoring mode:
 
 1. **Install System Dependencies**
 ```bash
-# Install ydotool for text insertion (Wayland)
-sudo apt install ydotool
+# Install wl-clipboard
+sudo apt install wl-clipboard
 
 # Install PortAudio for microphone recording
 sudo apt-get install portaudio19-dev
 ```
 
-### 2. Configure Permissions
+### 2. Configure Permissions (Hotkey Mode Only)
 ```bash
 # Add your user to the input group (required for keyboard access)
 sudo usermod -aG input $USER
@@ -77,25 +73,13 @@ sudo usermod -aG input $USER
 # IMPORTANT: Log out and log back in for this to take effect!
 ```
 
-### 3. Start ydotool Daemon (if needed)
-```bash
-# Check if ydotool works
-ydotool type "test"
-
-# If it doesn't work, start the daemon
-systemctl --user start ydotoold
-
-# Optional: Enable auto-start on boot
-systemctl --user enable ydotoold
-```
-
-### 4. Install Python Dependencies
+### 3. Install Python Dependencies
 ```bash
 cd /path/to/audio_recorder
 uv sync
 ```
 
-### 5. Verify Setup
+### 4. Verify Setup (Hotkey Mode)
 ```bash
 # Check if you can list keyboard devices
 uv run voice_to_text.py --list-keyboards
@@ -106,7 +90,16 @@ uv run voice_to_text.py --list-keyboards
 
 ## Usage
 
-### Basic Usage
+### Secure Mode (Recommended)
+```bash
+# Single recording (5 seconds)
+uv run voice_to_text.py --record-once -d 5
+
+# After 2 seconds: speak
+# After recording: press Ctrl+V to paste
+```
+
+### Hotkey Mode
 ```bash
 # Start the voice-to-text service
 uv run voice_to_text.py
@@ -115,7 +108,7 @@ uv run voice_to_text.py
 # 1. Press and hold Alt+R
 # 2. Speak clearly
 # 3. Release Alt+R
-# 4. Text appears at cursor!
+# 4. Press Ctrl+V to paste text
 ```
 
 ### Common Options

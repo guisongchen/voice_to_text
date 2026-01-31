@@ -72,15 +72,13 @@ class VoiceToTextService:
         else:
             step = 1
         
-        # Check ydotool
-        print(f"\n[{step}/{2 if self.no_hotkey else 3}] Checking ydotool...")
-        if not self._check_ydotool():
-            print("✗ Error: ydotool not found or not working!")
-            print("  Install with: sudo apt install ydotool")
-            print("  You may need to start ydotool daemon:")
-            print("    systemctl --user start ydotoold")
+        # Check wl-clipboard
+        print(f"\n[{step}/{2 if self.no_hotkey else 3}] Checking wl-clipboard...")
+        if not self._check_wl_clipboard():
+            print("✗ Error: wl-copy not found!")
+            print("  Install with: sudo apt install wl-clipboard")
             return False
-        print("✓ ydotool is available")
+        print("✓ wl-clipboard is available")
         
         step += 1
         
@@ -129,11 +127,11 @@ class VoiceToTextService:
         
         return None
     
-    def _check_ydotool(self):
-        """Check if ydotool is installed and working."""
+    def _check_wl_clipboard(self):
+        """Check if wl-clipboard is installed."""
         try:
             result = subprocess.run(
-                ['ydotool', '--help'],
+                ['wl-copy', '--version'],
                 capture_output=True,
                 timeout=2
             )
@@ -142,25 +140,26 @@ class VoiceToTextService:
             return False
     
     def _insert_text(self, text):
-        """Insert text at cursor position using ydotool."""
+        """Copy text to clipboard using wl-copy."""
         if not text or not text.strip():
             print("  (No text to insert)")
             return False
         
         try:
-            # Use ydotool to type the text
-            # Add small delay to ensure it works reliably
+            # Copy text to clipboard using wl-copy
             subprocess.run(
-                ['ydotool', 'type', text],
+                ['wl-copy'],
+                input=text.encode('utf-8'),
                 check=True,
-                timeout=5
+                timeout=2
             )
+            print("  ✓ Text copied to clipboard! Press Ctrl+V to paste.")
             return True
         except subprocess.CalledProcessError as e:
-            print(f"  ✗ Error inserting text: {e}")
+            print(f"  ✗ Error copying to clipboard: {e}")
             return False
         except subprocess.TimeoutExpired:
-            print("  ✗ Error: ydotool timed out")
+            print("  ✗ Error: wl-copy timed out")
             return False
     
     def _start_recording(self):
@@ -278,12 +277,12 @@ class VoiceToTextService:
             preview = text[:80] + "..." if len(text) > 80 else text
             print(f"📝 Transcribed: \"{preview}\"")
             
-            # Insert text at cursor
-            print("⌨️  Inserting text...")
+            # Copy text to clipboard
+            print("📋 Copying to clipboard...")
             if self._insert_text(text):
-                print("✓ Done!")
+                print("✓ Done! Paste with Ctrl+V")
             else:
-                print("  You can manually paste this text:")
+                print("  You can manually copy this text:")
                 print(f"  {text}")
             
         except Exception as e:
@@ -445,7 +444,7 @@ def list_keyboard_devices():
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Voice-to-Text Input Tool - Press Alt+R to record and insert text",
+        description="Voice-to-Text Input Tool - Press Alt+R to record and copy text to clipboard",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 System Requirements (Hotkey Mode):
@@ -453,8 +452,8 @@ System Requirements (Hotkey Mode):
      sudo usermod -aG input $USER
      (then log out and back in)
   
-  2. ydotool must be installed:
-     sudo apt install ydotool
+  2. wl-clipboard must be installed:
+     sudo apt install wl-clipboard
   
   3. NVIDIA GPU with CUDA for Whisper transcription
 
@@ -467,7 +466,7 @@ Usage Modes:
   HOTKEY MODE (requires input group):
     Press and hold Alt+R to start recording
     Release Alt+R to stop and transcribe
-    Text will be inserted at cursor position
+    Text will be copied to clipboard, paste with Ctrl+V
 
   SINGLE RECORDING MODE (secure, no input group needed):
     Use --record-once to record once and exit
@@ -499,7 +498,8 @@ Desktop Shortcut Setup (GNOME):
   3. Name: "Voice to Text"
   4. Command: /full/path/to/uv run /full/path/to/voice_to_text.py --record-once -d 5
   5. Set shortcut: Alt+R
-  6. Now Alt+R records for 5 seconds anywhere!
+  6. Now Alt+R records for 5 seconds and copies text to clipboard!
+  7. After recording, press Ctrl+V to paste the text
         """
     )
     
