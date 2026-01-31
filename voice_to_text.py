@@ -154,44 +154,23 @@ class VoiceToTextService:
     def _play_beep(self, beep_type='start'):
         """Play a beep sound for feedback.
         
+        Uses terminal bell (system beep) which bypasses audio system.
+        Falls back to audio files if terminal bell doesn't work.
+        
         Args:
             beep_type: 'start' for recording start, 'finish' for recording finish
         """
         try:
-            # Try to use system sounds (Ubuntu/GNOME)
+            # PRIMARY: Use terminal bell (bypasses PipeWire entirely)
+            # Double beep for start, single for finish (to distinguish)
             if beep_type == 'start':
-                # Higher pitch for start
-                sound_files = [
-                    '/usr/share/sounds/freedesktop/stereo/message-new-instant.oga',
-                    '/usr/share/sounds/freedesktop/stereo/bell.oga',
-                    '/usr/share/sounds/sound-icons/prompt.wav',
-                ]
+                print('\a\a', end='', flush=True)  # Two beeps
             else:  # finish
-                # Lower pitch for finish
-                sound_files = [
-                    '/usr/share/sounds/freedesktop/stereo/complete.oga',
-                    '/usr/share/sounds/freedesktop/stereo/message.oga',
-                    '/usr/share/sounds/sound-icons/glass-water-1.wav',
-                ]
+                print('\a', end='', flush=True)  # One beep
             
-            # Try each sound file until one works
-            for sound_file in sound_files:
-                if Path(sound_file).exists():
-                    # Use paplay (PulseAudio) or aplay (ALSA) to play sound
-                    for player in ['paplay', 'aplay']:
-                        try:
-                            subprocess.run(
-                                [player, sound_file],
-                                capture_output=True,
-                                timeout=1,
-                                check=True
-                            )
-                            return  # Success
-                        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
-                            continue
-            
-            # Fallback: terminal bell
-            print('\a', end='', flush=True)
+            # Note: Terminal bell behavior depends on terminal settings
+            # GNOME Terminal, Konsole, etc. handle this differently
+            # Some play sound, some flash screen, some do nothing
             
         except Exception:
             # Silent failure - beep is nice-to-have, not critical
