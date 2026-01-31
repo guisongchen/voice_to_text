@@ -234,37 +234,37 @@ If you need more control, you can use the tools separately:
 
 Basic recording (10 seconds, default settings):
 ```bash
-uv run audio_recorder.py
+uv run record
 ```
 
 Custom duration:
 ```bash
-uv run audio_recorder.py -d 30  # Record for 30 seconds
+uv run record -d 30  # Record for 30 seconds
 ```
 
 Specify output filename:
 ```bash
-uv run audio_recorder.py -o my_recording.wav
+uv run record -o my_recording.wav
 ```
 
 Mono recording:
 ```bash
-uv run audio_recorder.py -c 1  # 1 channel (mono)
+uv run record -c 1  # 1 channel (mono)
 ```
 
 Custom sample rate:
 ```bash
-uv run audio_recorder.py -r 48000  # 48kHz sample rate
+uv run record -r 48000  # 48kHz sample rate
 ```
 
 List available audio devices:
 ```bash
-uv run audio_recorder.py --list-devices
+uv run record --list-devices
 ```
 
 Combined options:
 ```bash
-uv run audio_recorder.py -d 60 -o interview.wav -r 44100 -c 2
+uv run record -d 60 -o interview.wav -r 44100 -c 2
 ```
 
 #### Transcribing Audio Only
@@ -322,7 +322,7 @@ uv run transcribe.py --force --all
 - `--transcribe-only FILE`: Transcribe existing file without recording
 - `--list-devices`: List available audio input devices
 
-### Audio Recorder (audio_recorder.py)
+### Audio Recorder (record command)
 
 - `-d, --duration`: Recording duration in seconds (default: 10)
 - `-o, --output`: Output filename (default: recording_TIMESTAMP.wav)
@@ -388,8 +388,8 @@ cat interview.txt
 ### Batch transcription:
 ```bash
 # Record multiple clips separately
-uv run audio_recorder.py -d 30 -o clip1.wav
-uv run audio_recorder.py -d 30 -o clip2.wav
+uv run record -d 30 -o clip1.wav
+uv run record -d 30 -o clip2.wav
 
 # Transcribe all at once
 uv run transcribe.py --all
