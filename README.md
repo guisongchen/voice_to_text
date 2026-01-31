@@ -13,7 +13,7 @@ A Python CLI tool to record audio from your microphone and transcribe it to text
 - 📝 Transcribe audio files to text using Whisper AI
 - 🚀 GPU-accelerated transcription (CUDA required)
 - 🌏 Supports multiple languages (Chinese, English, etc.)
-- ⚙️ Configurable sample rate, channels, and recording duration
+- ⚙️ Fixed sample rate (44100Hz) and stereo channels; configurable recording duration
 - 🎯 Multiple Whisper model sizes for speed/accuracy tradeoff
 - 💾 Optional audio file deletion to save space
 - 📦 Batch transcription support
@@ -247,25 +247,13 @@ Specify output filename:
 uv run record -o my_recording.wav
 ```
 
-Mono recording:
-```bash
-uv run record -c 1  # 1 channel (mono)
-```
 
-Custom sample rate:
-```bash
-uv run record -r 48000  # 48kHz sample rate
-```
 
 List available audio devices:
 ```bash
 uv run record --list-devices
 ```
 
-Combined options:
-```bash
-uv run record -d 60 -o interview.wav -r 44100 -c 2
-```
 
 #### Transcribing Audio Only
 
@@ -310,8 +298,6 @@ uv run transcribe.py --force --all
 **Recording Options:**
 - `-d, --duration`: Recording duration in seconds (default: 10)
 - `-o, --output`: Output filename (default: recording_TIMESTAMP.wav)
-- `-r, --rate`: Sample rate in Hz (default: 44100)
-- `-c, --channels`: Number of channels - 1=mono, 2=stereo (default: 2)
 
 **Transcription Options:**
 - `-m, --model`: Whisper model size - tiny, base, small, medium, large (default: small)
@@ -326,8 +312,6 @@ uv run transcribe.py --force --all
 
 - `-d, --duration`: Recording duration in seconds (default: 10)
 - `-o, --output`: Output filename (default: recording_TIMESTAMP.wav)
-- `-r, --rate`: Sample rate in Hz (default: 44100)
-- `-c, --channels`: Number of channels - 1=mono, 2=stereo (default: 2)
 - `--list-devices`: List available audio input devices
 
 ### Transcriber (transcribe.py)
@@ -359,7 +343,7 @@ All models use GPU acceleration (CUDA) for faster transcription.
 - Transcribes audio to text with Whisper AI
 - Progress indicator during recording
 - Automatic timestamped filenames
-- Configurable sample rate and channels
+- Fixed sample rate (44100Hz) and stereo channels
 - Batch transcription support
 - Multiple Whisper models for speed/accuracy tradeoff
 - Keyboard interrupt support (Ctrl+C)

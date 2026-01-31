@@ -10,6 +10,7 @@ from datetime import datetime
 
 from ..core.audio_service import AudioService
 from ..transcribe import AudioTranscriber
+from ..core.config import SAMPLE_RATE, CHANNELS
 
 
 def main():
@@ -42,8 +43,6 @@ Examples:
 Recording Options:
   -d, --duration     Recording duration in seconds (default: 10)
   -o, --output       Output filename (default: recording_TIMESTAMP.wav)
-  -r, --rate         Sample rate in Hz (default: 44100)
-  -c, --channels     Number of channels: 1=mono, 2=stereo (default: 2)
 
 Transcription Options:
   -m, --model        Whisper model: tiny/base/small/medium/large (default: small)
@@ -67,19 +66,6 @@ Other Options:
         '-o', '--output',
         type=str,
         help='Output filename (default: recording_TIMESTAMP.wav)'
-    )
-    parser.add_argument(
-        '-r', '--rate',
-        type=int,
-        default=44100,
-        help='Sample rate in Hz (default: 44100)'
-    )
-    parser.add_argument(
-        '-c', '--channels',
-        type=int,
-        default=2,
-        choices=[1, 2],
-        help='Number of channels: 1=mono, 2=stereo (default: 2)'
     )
 
     # Transcription options
@@ -119,8 +105,8 @@ Other Options:
     # List devices mode
     if args.list_devices:
         recorder = AudioService(
-            sample_rate=args.rate,
-            channels=args.channels
+            sample_rate=SAMPLE_RATE,
+            channels=CHANNELS
         )
         try:
             recorder.list_devices()
@@ -154,8 +140,8 @@ Other Options:
         print("=" * 60)
 
         recorder = AudioService(
-            sample_rate=args.rate,
-            channels=args.channels
+            sample_rate=SAMPLE_RATE,
+            channels=CHANNELS
         )
 
         try:
