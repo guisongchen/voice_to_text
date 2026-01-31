@@ -74,19 +74,28 @@ A Python CLI tool to record audio from your microphone and transcribe it to text
 
 #### Quick Start (Secure Mode - Recommended)
 
-**Step 1: Test the tool**
+**Step 1: Add yourself to input group (one-time setup)**
 ```bash
-# Record for 5 seconds, then transcribe and insert
+sudo usermod -aG input $USER
+# Log out and log back in for this to take effect
+```
+
+**Step 2: Test the tool**
+```bash
+# Press Alt+R again to stop (RECOMMENDED - no time limit)
+uv run voice_to_text.py --record-once
+
+# Or use fixed 5 second duration
 uv run voice_to_text.py --record-once -d 5
 ```
 
-**Step 2: Set up GNOME keyboard shortcut**
+**Step 3: Set up GNOME keyboard shortcut**
 1. Open **Settings → Keyboard → Keyboard Shortcuts**
 2. Scroll down and click **"+"** to add custom shortcut
 3. **Name**: `Voice to Text`
 4. **Command**: 
    ```
-   /usr/bin/bash -c "cd /home/YOUR_USERNAME/vibe_projects/audio_recorder && /home/YOUR_USERNAME/.local/bin/uv run voice_to_text.py --record-once -d 5"
+   /usr/bin/bash -c "cd /home/YOUR_USERNAME/vibe_projects/audio_recorder && /home/YOUR_USERNAME/.local/bin/uv run voice_to_text.py --record-once"
    ```
    (Replace `YOUR_USERNAME` with your actual username)
 5. Click **Set Shortcut** and press `Alt+R`
@@ -94,9 +103,9 @@ uv run voice_to_text.py --record-once -d 5
 
 **How to use:**
 1. **Focus any application** (browser, editor, terminal, etc.)
-2. **Press Alt+R** - Recording starts (2 audio beeps), tool counts down 5 seconds
+2. **Press Alt+R** - Recording starts (2 audio beeps)
 3. **Speak clearly** - Your speech is being recorded
-4. **Wait** - Transcription happens automatically (1 beep when done)
+4. **Press Alt+R again** - Recording stops (1 beep), transcription begins
 5. **Text appears** - Inserted at your cursor position!
 
 **Note:** Audio feedback uses programmatic beeps (880Hz/660Hz tones) that work in all scenarios including desktop shortcuts.
@@ -131,30 +140,28 @@ Once running:
 
 #### Voice-to-Text Options
 
-**Secure mode with different durations:**
+**Basic usage:**
 ```bash
-# 3 second recording (quick notes)
-uv run voice_to_text.py --record-once -d 3
-
-# 10 second recording (longer input)
-uv run voice_to_text.py --record-once -d 10
-
-# Manual stop with Ctrl+C (variable length)
+# Manual stop with Alt+R (RECOMMENDED)
 uv run voice_to_text.py --record-once
+
+# Fixed duration recording
+uv run voice_to_text.py --record-once -d 3   # 3 seconds
+uv run voice_to_text.py --record-once -d 10  # 10 seconds
 ```
 
 **Use a different Whisper model:**
 ```bash
 # Faster transcription (less accurate)
-uv run voice_to_text.py --record-once -d 5 --model small
+uv run voice_to_text.py --record-once --model small
 
 # Best accuracy (slower)
-uv run voice_to_text.py --record-once -d 5 --model large
+uv run voice_to_text.py --record-once --model large
 ```
 
 **Keep audio files for debugging:**
 ```bash
-uv run voice_to_text.py --record-once -d 5 --keep-audio
+uv run voice_to_text.py --record-once --keep-audio
 ```
 
 **For hotkey mode (requires input group):**
