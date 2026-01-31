@@ -215,9 +215,8 @@ class VoiceToTextService:
         # Play start beep BEFORE starting recording
         self._play_beep('start')
         
-        # Wait for beep to finish and audio system to settle (500ms)
-        # This also gives user a moment to prepare to speak
-        time.sleep(0.5)
+        # Short delay for beep to finish (warm-up happens in thread)
+        time.sleep(0.3)
         
         self.is_recording = True
         self.recording_start_time = time.time()
@@ -229,6 +228,7 @@ class VoiceToTextService:
         print("\n🎤 Recording... (release Alt+R to stop)")
         
         # Start recording in background thread
+        # Thread will do extended warm-up for PipeWire/PulseAudio
         self.recording_thread = threading.Thread(
             target=self._record_audio_thread,
             daemon=True
@@ -244,13 +244,16 @@ class VoiceToTextService:
                 channels=self.recorder.channels,
                 rate=self.recorder.sample_rate,
                 input=True,
-                frames_per_buffer=self.recorder.chunk_size
+                frames_per_buffer=self.recorder.chunk_size,
+                # These may help with PipeWire/PulseAudio stability
+                stream_callback=None
             )
             
-            # WARM-UP: Read and discard initial chunks to let audio system settle
-            # This eliminates initialization noise (clicks, pops, static)
-            warmup_chunks = 10  # ~230ms at default chunk size
-            for _ in range(warmup_chunks):
+            # EXTENDED WARM-UP for PipeWire/PulseAudio
+            # PipeWire needs ~1 second to fully activate the stream
+            # Discard audio during activation to avoid buzz/noise
+            warmup_chunks = 50  # ~1.2 seconds at default chunk size
+            for i in range(warmup_chunks):
                 if not self.is_recording:
                     break
                 try:
@@ -268,6 +271,15 @@ class VoiceToTextService:
                 except Exception as e:
                     print(f"  Recording error: {e}")
                     break
+            
+            # COOL-DOWN: Keep reading for a bit to avoid end noise
+            # This helps PipeWire cleanly close the stream
+            cooldown_chunks = 10  # ~230ms
+            for _ in range(cooldown_chunks):
+                try:
+                    stream.read(self.recorder.chunk_size, exception_on_overflow=False)
+                except Exception:
+                    pass
             
             stream.stop_stream()
             stream.close()
@@ -292,13 +304,12 @@ class VoiceToTextService:
         
         print(f"⏹️  Stopped (duration: {duration:.1f}s)")
         
-        # Wait for recording thread to finish
+        # Wait for recording thread to finish (includes cool-down)
         if self.recording_thread:
-            self.recording_thread.join(timeout=2.0)
+            self.recording_thread.join(timeout=3.0)
         
-        # Wait for audio system to settle before playing beep (500ms)
-        # This ensures recording is fully stopped and buffers are flushed
-        time.sleep(0.5)
+        # Short delay before beep (stream is already closed cleanly)
+        time.sleep(0.2)
         
         # Play finish beep AFTER recording has stopped
         self._play_beep('finish')
