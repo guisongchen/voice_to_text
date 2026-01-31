@@ -94,9 +94,9 @@ uv run voice_to_text.py --record-once -d 5
 
 **How to use:**
 1. **Focus any application** (browser, editor, terminal, etc.)
-2. **Press Alt+R** - Recording starts, tool counts down 5 seconds
+2. **Press Alt+R** - Recording starts (you'll hear a beep), tool counts down 5 seconds
 3. **Speak clearly** - Your speech is being recorded
-4. **Wait** - Transcription happens automatically
+4. **Wait** - Transcription happens automatically (beep when done)
 5. **Text appears** - Inserted at your cursor position!
 
 #### Alternative: Hotkey Mode (Requires Input Group)
@@ -109,24 +109,9 @@ uv run voice_to_text.py
 ```
 
 Once running:
-1. **Press and hold Alt+R** - Recording starts immediately
+1. **Press and hold Alt+R** - Recording starts (beep sound)
 2. **Speak clearly** - Your voice is being recorded
-3. **Release Alt+R** - Recording stops, transcription begins
-4. **Text appears** - Transcribed text is automatically inserted at cursor
-
-#### Alternative: Hotkey Mode (Requires Input Group)
-
-If you prefer continuous monitoring and have added yourself to the input group:
-
-```bash
-# Start the voice-to-text service (continuous mode)
-uv run voice_to_text.py
-```
-
-Once running:
-1. **Press and hold Alt+R** - Recording starts immediately
-2. **Speak clearly** - Your voice is being recorded
-3. **Release Alt+R** - Recording stops, transcription begins
+3. **Release Alt+R** - Recording stops (beep sound), transcription begins
 4. **Text appears** - Inserted at your cursor position
 
 **Security Warning**: This mode requires `input` group membership which grants access to all keyboard/mouse events.
@@ -135,6 +120,7 @@ Once running:
 
 - 🌍 **System-wide**: Works in browser, text editor, terminal, any application
 - 🔒 **Secure Option**: `--record-once` mode needs no special permissions
+- 🔊 **Audio feedback**: Beeps when recording starts and finishes
 - ⌨️ **Direct insertion**: Uses xdotool to type text at cursor
 - ⚡ **Fast**: Pre-loaded model, transcription starts immediately
 - 🔒 **Private**: Fully offline, no internet required

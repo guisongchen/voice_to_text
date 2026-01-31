@@ -13,6 +13,7 @@ from pathlib import Path
 from datetime import datetime
 import threading
 import queue
+import os
 
 import evdev
 from evdev import InputDevice, categorize, ecodes
@@ -139,6 +140,52 @@ class VoiceToTextService:
         except (subprocess.TimeoutExpired, FileNotFoundError):
             return False
     
+    def _play_beep(self, beep_type='start'):
+        """Play a beep sound for feedback.
+        
+        Args:
+            beep_type: 'start' for recording start, 'finish' for recording finish
+        """
+        try:
+            # Try to use system sounds (Ubuntu/GNOME)
+            if beep_type == 'start':
+                # Higher pitch for start
+                sound_files = [
+                    '/usr/share/sounds/freedesktop/stereo/message-new-instant.oga',
+                    '/usr/share/sounds/freedesktop/stereo/bell.oga',
+                    '/usr/share/sounds/sound-icons/prompt.wav',
+                ]
+            else:  # finish
+                # Lower pitch for finish
+                sound_files = [
+                    '/usr/share/sounds/freedesktop/stereo/complete.oga',
+                    '/usr/share/sounds/freedesktop/stereo/message.oga',
+                    '/usr/share/sounds/sound-icons/glass-water-1.wav',
+                ]
+            
+            # Try each sound file until one works
+            for sound_file in sound_files:
+                if Path(sound_file).exists():
+                    # Use paplay (PulseAudio) or aplay (ALSA) to play sound
+                    for player in ['paplay', 'aplay']:
+                        try:
+                            subprocess.run(
+                                [player, sound_file],
+                                capture_output=True,
+                                timeout=1,
+                                check=True
+                            )
+                            return  # Success
+                        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
+                            continue
+            
+            # Fallback: terminal bell
+            print('\a', end='', flush=True)
+            
+        except Exception:
+            # Silent failure - beep is nice-to-have, not critical
+            pass
+    
     def _insert_text(self, text):
         """Insert text at cursor position using xdotool."""
         if not text or not text.strip():
@@ -171,6 +218,9 @@ class VoiceToTextService:
         # Create temporary file for recording
         temp_fd, temp_path = tempfile.mkstemp(suffix='.wav', prefix='voice_to_text_')
         self.current_audio_file = temp_path
+        
+        # Play start beep
+        self._play_beep('start')
         
         print("\n🎤 Recording... (release Alt+R to stop)")
         
@@ -224,6 +274,9 @@ class VoiceToTextService:
         
         self.is_recording = False
         duration = time.time() - self.recording_start_time
+        
+        # Play finish beep
+        self._play_beep('finish')
         
         print(f"⏹️  Stopped (duration: {duration:.1f}s)")
         
