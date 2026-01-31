@@ -219,10 +219,18 @@ xdotool type "test"
 - Use a better microphone
 - Try a larger model: `--model medium` or `--model large`
 
+**Audio feedback beeps too quiet:**
+- Tool uses 4 terminal beeps for start, 2 for finish
+- Also shows visual indicators: 🔴 ● REC (colored, bold text)
+- To make beeps louder:
+  - GNOME Terminal: Preferences → Sound → Terminal bell
+  - System Settings → Sound → Sound Effects volume
+- Alternative: Watch for visual indicators instead
+- To disable beeps: `--no-beeps`
+
 **Audio feedback beeps causing noise:**
 - The tool uses terminal bell (system beep) which bypasses PipeWire
-- If you hear no beep, check your terminal's bell settings
-- To disable beeps entirely: `--no-beeps`
+- If you still hear noise, use: `--no-beeps` (visual feedback remains)
 - Some terminals (GNOME Terminal, Konsole) may flash instead of beep
 
 ---

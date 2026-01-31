@@ -152,27 +152,35 @@ class VoiceToTextService:
             return False
     
     def _play_beep(self, beep_type='start'):
-        """Play a beep sound for feedback.
+        """Play enhanced feedback using terminal bell and visual cues.
         
-        Uses terminal bell (system beep) which bypasses audio system.
-        Falls back to audio files if terminal bell doesn't work.
+        Uses multiple terminal bells for audibility and visual feedback
+        for clarity. Bypasses audio system to avoid PipeWire issues.
         
         Args:
             beep_type: 'start' for recording start, 'finish' for recording finish
         """
         try:
-            # PRIMARY: Use terminal bell (bypasses PipeWire entirely)
-            # Double beep for start, single for finish (to distinguish)
+            # Enhanced terminal bell with visual feedback
             if beep_type == 'start':
-                print('\a\a', end='', flush=True)  # Two beeps
+                # Multiple beeps for start (more noticeable)
+                print('\a\a\a\a', end='', flush=True)  # 4 quick beeps
+                # Visual feedback with color
+                print('\033[1;32m🔴 ● REC\033[0m', end='', flush=True)
             else:  # finish
-                print('\a', end='', flush=True)  # One beep
+                # Fewer beeps for finish (distinguish from start)
+                print('\a\a', end='', flush=True)  # 2 beeps
+                # Visual feedback
+                print('\033[1;34m ●\033[0m', end='', flush=True)
             
             # Note: Terminal bell behavior depends on terminal settings
-            # GNOME Terminal, Konsole, etc. handle this differently
-            # Some play sound, some flash screen, some do nothing
+            # GNOME Terminal: Preferences → Sound → Terminal bell
+            # User can increase system sound volume for louder beeps
+            # Visual feedback (●) provides additional confirmation
             
         except Exception:
+            # Silent failure - feedback is nice-to-have, not critical
+            pass
             # Silent failure - beep is nice-to-have, not critical
             pass
     
@@ -215,7 +223,11 @@ class VoiceToTextService:
         temp_fd, temp_path = tempfile.mkstemp(suffix='.wav', prefix='voice_to_text_')
         self.current_audio_file = temp_path
         
-        print("\n🎤 Recording... (release Alt+R to stop)")
+        print("\n\033[1;31m🎤 RECORDING...\033[0m ", end='', flush=True)
+        if not self.no_hotkey and not self.fixed_duration:
+            print("(release Alt+R to stop)", flush=True)
+        else:
+            print("", flush=True)
         
         # Start recording in background thread
         # Thread will do extended warm-up for PipeWire/PulseAudio
@@ -292,7 +304,7 @@ class VoiceToTextService:
         self.is_recording = False
         duration = time.time() - self.recording_start_time
         
-        print(f"⏹️  Stopped (duration: {duration:.1f}s)")
+        print(f"\n\033[1;33m⏹️  STOPPED\033[0m (duration: {duration:.1f}s)")
         
         # Wait for recording thread to finish (includes cool-down)
         if self.recording_thread:
