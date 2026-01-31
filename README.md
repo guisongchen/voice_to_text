@@ -221,10 +221,6 @@ uv run record --no-transcribe -d 60
 uv run record --transcribe-only existing.wav
 ```
 
-**List available microphones:**
-```bash
-uv run record --list-devices
-```
 
 ### 📋 Advanced: Separate Recording and Transcription
 
@@ -249,10 +245,6 @@ uv run record -o my_recording.wav
 
 
 
-List available audio devices:
-```bash
-uv run record --list-devices
-```
 
 
 #### Transcribing Audio Only
@@ -306,13 +298,11 @@ uv run transcribe.py --force --all
 
 **Special Modes:**
 - `--transcribe-only FILE`: Transcribe existing file without recording
-- `--list-devices`: List available audio input devices
 
 ### Audio Recorder (record command)
 
 - `-d, --duration`: Recording duration in seconds (default: 10)
 - `-o, --output`: Output filename (default: recording_TIMESTAMP.wav)
-- `--list-devices`: List available audio input devices
 
 ### Transcriber (transcribe.py)
 

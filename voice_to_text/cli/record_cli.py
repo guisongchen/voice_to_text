@@ -37,8 +37,6 @@ Examples:
   # Transcribe existing file without recording
   record --transcribe-only recording.wav
 
-  # List available audio devices
-  record --list-devices
 
 Recording Options:
   -d, --duration     Recording duration in seconds (default: 10)
@@ -51,7 +49,6 @@ Transcription Options:
 
 Other Options:
   --transcribe-only  Transcribe existing file without recording
-  --list-devices     List available audio input devices
         """
     )
 
@@ -94,25 +91,9 @@ Other Options:
         metavar='FILE',
         help='Transcribe existing audio file without recording'
     )
-    parser.add_argument(
-        '--list-devices',
-        action='store_true',
-        help='List available audio input devices and exit'
-    )
 
     args = parser.parse_args()
 
-    # List devices mode
-    if args.list_devices:
-        recorder = AudioService(
-            sample_rate=SAMPLE_RATE,
-            channels=CHANNELS
-        )
-        try:
-            recorder.list_devices()
-        finally:
-            recorder.cleanup()
-        return
 
     # Transcribe-only mode
     if args.transcribe_only:
