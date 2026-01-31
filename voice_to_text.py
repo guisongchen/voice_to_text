@@ -42,6 +42,7 @@ class VoiceToTextService:
         self.wait_for_key = wait_for_key  # Wait for Alt+R to stop
         self.use_pidfile = use_pidfile  # Use PID file + SIGUSR1 for stopping
         self.pidfile = Path('/tmp/voice_to_text.pid')
+        self.stop_signal_received = False  # Flag for SIGUSR1
         
         # State tracking
         self.is_recording = False
@@ -124,6 +125,9 @@ class VoiceToTextService:
         if self.no_hotkey:
             if self.fixed_duration:
                 print(f"✓ Ready! Recording will start in 2 seconds ({self.fixed_duration}s duration)")
+            elif self.use_pidfile:
+                print("✓ Ready! Recording will start in 2 seconds")
+                print("  Send SIGUSR1 or run toggle script again to stop")
             elif self.wait_for_key:
                 print("✓ Ready! Recording will start in 2 seconds")
                 print("  Press Alt+R again to stop recording")
@@ -506,32 +510,36 @@ class VoiceToTextService:
     
     def _sigusr1_handler(self, signum, frame):
         """Handle SIGUSR1 signal to stop recording."""
-        if self.is_recording:
-            print("\n[Received stop signal]")
-            self.is_recording = False
+        print("\n[Received stop signal]")
+        self.stop_signal_received = True
     
     def _run_single_recording(self):
         """Run a single recording session without hotkey monitoring."""
         try:
             if self.use_pidfile:
                 # PID file mode - wait for SIGUSR1 signal to stop
-                print("\nStarting recording in 2 seconds...")
-                print("Run the same command again (or send SIGUSR1) to stop recording")
+                print("\nStarting recording in 2 seconds...", flush=True)
+                print("Run the same command again (or send SIGUSR1) to stop recording", flush=True)
                 time.sleep(2)
                 
                 # Write PID file
                 self.pidfile.write_text(str(os.getpid()))
+                print(f"PID {os.getpid()} written to {self.pidfile}", flush=True)
                 
                 self._start_recording()
                 
                 # Wait for signal to stop
-                while self.is_recording and not self.should_exit:
+                print("Waiting for stop signal...", flush=True)
+                while not self.stop_signal_received and not self.should_exit:
                     time.sleep(0.1)
+                
+                print("Stop signal received, cleaning up...", flush=True)
                 
                 # Clean up PID file
                 if self.pidfile.exists():
                     self.pidfile.unlink()
                 
+                # Stop recording and transcribe
                 if self.is_recording:
                     self._stop_recording()
                     
