@@ -2,6 +2,11 @@
 """
 Voice-to-Text Input Tool
 System-wide voice input triggered by Alt+R hotkey with automatic text insertion.
+
+PipeWire Noise Prevention:
+- OUTPUT stream kept alive during recording to prevent suspension noise
+- INPUT stream warm-up (50 chunks ~1.2s) discards mic activation artifacts
+- Programmatic beep tones (no file I/O) for clean audio feedback
 """
 import argparse
 import sys
@@ -14,6 +19,8 @@ from datetime import datetime
 import threading
 import queue
 import os
+import numpy as np
+import pyaudio
 
 import evdev
 from evdev import InputDevice, categorize, ecodes
@@ -26,13 +33,12 @@ class VoiceToTextService:
     """Main service for voice-to-text input with global hotkey support."""
     
     def __init__(self, model_size='medium', min_duration=0.5, keep_audio=False, 
-                 duration=None, no_hotkey=False, no_beeps=False):
+                 duration=None, no_hotkey=False):
         self.model_size = model_size
         self.min_duration = min_duration
         self.keep_audio = keep_audio
         self.fixed_duration = duration
         self.no_hotkey = no_hotkey
-        self.no_beeps = no_beeps
         
         # State tracking
         self.is_recording = False
@@ -48,6 +54,10 @@ class VoiceToTextService:
         # Threading for non-blocking recording
         self.recording_thread = None
         self.audio_queue = queue.Queue()
+        
+        # PyAudio for beep generation
+        self.pyaudio_instance = None
+        self.output_stream = None  # Keep stream alive to prevent PipeWire noise
         
     def initialize(self):
         """Initialize all components."""
@@ -98,13 +108,10 @@ class VoiceToTextService:
         self.recorder = AudioRecorder()
         
         # Show diagnostic mode info
-        if self.no_beeps or self.keep_audio:
+        if self.keep_audio:
             print("\n" + "=" * 60)
             print("DIAGNOSTIC MODE:")
-            if self.no_beeps:
-                print("  • Audio feedback beeps DISABLED")
-            if self.keep_audio:
-                print("  • Recording files will be PRESERVED")
+            print("  • Recording files will be PRESERVED")
             print("=" * 60)
         
         print("\n" + "=" * 60)
@@ -151,38 +158,122 @@ class VoiceToTextService:
         except (subprocess.TimeoutExpired, FileNotFoundError):
             return False
     
-    def _play_beep(self, beep_type='start'):
-        """Play enhanced feedback using terminal bell and visual cues.
+    def _generate_beep_tone(self, frequency=880, duration=0.2, sample_rate=44100):
+        """Generate a beep tone as numpy array.
         
-        Uses multiple terminal bells for audibility and visual feedback
-        for clarity. Bypasses audio system to avoid PipeWire issues.
+        Args:
+            frequency: Frequency in Hz (default 880 Hz = A5 note)
+            duration: Duration in seconds (default 0.2s)
+            sample_rate: Sample rate in Hz (default 44100)
+            
+        Returns:
+            numpy array of int16 audio samples
+        """
+        # Generate time array
+        num_samples = int(sample_rate * duration)
+        t = np.linspace(0, duration, num_samples, False)
+        
+        # Generate sine wave
+        amplitude = 0.3  # 30% volume to prevent clipping
+        sine_wave = amplitude * np.sin(2 * np.pi * frequency * t)
+        
+        # Apply fade in/out to avoid clicks
+        fade_samples = int(sample_rate * 0.01)  # 10ms fade
+        fade_in = np.linspace(0, 1, fade_samples)
+        fade_out = np.linspace(1, 0, fade_samples)
+        sine_wave[:fade_samples] *= fade_in
+        sine_wave[-fade_samples:] *= fade_out
+        
+        # Convert to 16-bit PCM
+        audio_data = (sine_wave * 32767).astype(np.int16)
+        return audio_data
+    
+    def _play_tone(self, audio_data, sample_rate=44100):
+        """Play audio tone using PyAudio.
+        
+        Args:
+            audio_data: numpy array of int16 audio samples
+            sample_rate: Sample rate in Hz
+        """
+        try:
+            if self.pyaudio_instance is None:
+                self.pyaudio_instance = pyaudio.PyAudio()
+            
+            # Use persistent stream if available, otherwise create temporary one
+            if self.output_stream and self.output_stream.is_active():
+                stream = self.output_stream
+                close_after = False
+            else:
+                stream = self.pyaudio_instance.open(
+                    format=pyaudio.paInt16,
+                    channels=1,
+                    rate=sample_rate,
+                    output=True
+                )
+                close_after = True
+            
+            # Play audio
+            stream.write(audio_data.tobytes())
+            
+            # Only close if we created a temporary stream
+            if close_after:
+                stream.stop_stream()
+                stream.close()
+            
+        except Exception as e:
+            print(f"\nWarning: Could not play beep: {e}", file=sys.stderr)
+    
+    def _open_output_stream(self, sample_rate=44100):
+        """Open and keep output stream active to prevent PipeWire noise.
+        
+        This keeps the audio output active during the recording session,
+        preventing PipeWire from suspending/resuming the output stream
+        which causes buzz/noise artifacts.
+        """
+        try:
+            if self.pyaudio_instance is None:
+                self.pyaudio_instance = pyaudio.PyAudio()
+            
+            if self.output_stream is None or not self.output_stream.is_active():
+                self.output_stream = self.pyaudio_instance.open(
+                    format=pyaudio.paInt16,
+                    channels=1,
+                    rate=sample_rate,
+                    output=True
+                )
+        except Exception as e:
+            print(f"\nWarning: Could not open output stream: {e}", file=sys.stderr)
+    
+    def _close_output_stream(self):
+        """Close the persistent output stream."""
+        try:
+            if self.output_stream:
+                self.output_stream.stop_stream()
+                self.output_stream.close()
+                self.output_stream = None
+        except Exception as e:
+            print(f"\nWarning: Could not close output stream: {e}", file=sys.stderr)
+    
+    def _play_beep(self, beep_type='start'):
+        """Play audio feedback beep.
         
         Args:
             beep_type: 'start' for recording start, 'finish' for recording finish
         """
         try:
-            # Enhanced terminal bell with visual feedback
             if beep_type == 'start':
-                # Multiple beeps for start (more noticeable)
-                print('\a\a\a\a', end='', flush=True)  # 4 quick beeps
-                # Visual feedback with color
-                print('\033[1;32m🔴 ● REC\033[0m', end='', flush=True)
+                # Two beeps for start
+                beep = self._generate_beep_tone(frequency=880, duration=0.15)
+                self._play_tone(beep)
+                time.sleep(0.1)  # Pause between beeps
+                self._play_tone(beep)
             else:  # finish
-                # Fewer beeps for finish (distinguish from start)
-                print('\a\a', end='', flush=True)  # 2 beeps
-                # Visual feedback
-                print('\033[1;34m ●\033[0m', end='', flush=True)
-            
-            # Note: Terminal bell behavior depends on terminal settings
-            # GNOME Terminal: Preferences → Sound → Terminal bell
-            # User can increase system sound volume for louder beeps
-            # Visual feedback (●) provides additional confirmation
-            
-        except Exception:
-            # Silent failure - feedback is nice-to-have, not critical
-            pass
-            # Silent failure - beep is nice-to-have, not critical
-            pass
+                # Single beep for finish
+                beep = self._generate_beep_tone(frequency=660, duration=0.2)
+                self._play_tone(beep)
+                
+        except Exception as e:
+            print(f"\nWarning: Beep failed: {e}", file=sys.stderr)
     
     def _insert_text(self, text):
         """Insert text at cursor position using xdotool."""
@@ -210,11 +301,13 @@ class VoiceToTextService:
         if self.is_recording:
             return
         
-        # Play start beep BEFORE starting recording (if enabled)
-        if not self.no_beeps:
-            self._play_beep('start')
-            # Short delay for beep to finish (warm-up happens in thread)
-            time.sleep(0.3)
+        # Open output stream FIRST to keep PipeWire active (prevents noise)
+        self._open_output_stream()
+        
+        # Play start beep
+        self._play_beep('start')
+        # Short delay for beep to finish
+        time.sleep(0.3)
         
         self.is_recording = True
         self.recording_start_time = time.time()
@@ -223,14 +316,14 @@ class VoiceToTextService:
         temp_fd, temp_path = tempfile.mkstemp(suffix='.wav', prefix='voice_to_text_')
         self.current_audio_file = temp_path
         
-        print("\n\033[1;31m🎤 RECORDING...\033[0m ", end='', flush=True)
+        print("\nRecording... ", end='', flush=True)
         if not self.no_hotkey and not self.fixed_duration:
             print("(release Alt+R to stop)", flush=True)
         else:
             print("", flush=True)
         
         # Start recording in background thread
-        # Thread will do extended warm-up for PipeWire/PulseAudio
+        # Thread handles INPUT stream warm-up (discard initial mic noise)
         self.recording_thread = threading.Thread(
             target=self._record_audio_thread,
             daemon=True
@@ -240,20 +333,18 @@ class VoiceToTextService:
     def _record_audio_thread(self):
         """Background thread for audio recording."""
         try:
-            # Open audio stream
+            # Open audio INPUT stream (microphone)
             stream = self.recorder.audio.open(
                 format=self.recorder.format,
                 channels=self.recorder.channels,
                 rate=self.recorder.sample_rate,
                 input=True,
                 frames_per_buffer=self.recorder.chunk_size,
-                # These may help with PipeWire/PulseAudio stability
                 stream_callback=None
             )
             
-            # EXTENDED WARM-UP for PipeWire/PulseAudio
-            # PipeWire needs ~1 second to fully activate the stream
-            # Discard audio during activation to avoid buzz/noise
+            # INPUT WARM-UP: Discard initial chunks to avoid mic activation noise
+            # PipeWire needs ~1 second to fully activate the input stream
             warmup_chunks = 50  # ~1.2 seconds at default chunk size
             for i in range(warmup_chunks):
                 if not self.is_recording:
@@ -304,17 +395,19 @@ class VoiceToTextService:
         self.is_recording = False
         duration = time.time() - self.recording_start_time
         
-        print(f"\n\033[1;33m⏹️  STOPPED\033[0m (duration: {duration:.1f}s)")
+        print(f"\nStopped (duration: {duration:.1f}s)")
         
         # Wait for recording thread to finish (includes cool-down)
         if self.recording_thread:
             self.recording_thread.join(timeout=3.0)
         
-        # Play finish beep AFTER recording has stopped (if enabled)
-        if not self.no_beeps:
-            # Short delay before beep (stream is already closed cleanly)
-            time.sleep(0.2)
-            self._play_beep('finish')
+        # Play finish beep AFTER recording has stopped
+        # Short delay before beep (stream is already closed cleanly)
+        time.sleep(0.2)
+        self._play_beep('finish')
+        
+        # Close output stream now that we're done with audio
+        self._close_output_stream()
         
         # Check if recording was successful
         try:
@@ -490,6 +583,10 @@ class VoiceToTextService:
     
     def cleanup(self):
         """Clean up resources."""
+        self._close_output_stream()
+        if self.pyaudio_instance:
+            self.pyaudio_instance.terminate()
+            self.pyaudio_instance = None
         if self.recorder:
             self.recorder.close()
         if self.current_audio_file:
@@ -572,24 +669,11 @@ Examples:
   # Keep audio files for debugging
   uv run voice_to_text.py --record-once --keep-audio -d 5
   
-  # Disable beeps for diagnostics (test if beeps cause issues)
-  uv run voice_to_text.py --record-once --no-beeps -d 5
-  
-  # Full diagnostic mode (no beeps, keep audio file)
-  uv run voice_to_text.py --record-once --no-beeps --keep-audio -d 5
-  
   # List available keyboard devices (for hotkey mode)
   uv run voice_to_text.py --list-keyboards
 
-Diagnostic Workflow:
-  If you hear noise/buzz in recordings:
-  1. Test without beeps: --no-beeps --keep-audio -d 5
-  2. Check saved WAV file with audio player
-  3. If noise is in WAV file: recording issue
-  4. If noise only during playback: beep/output issue
-
 Desktop Shortcut Setup (GNOME):
-  1. Open Settings → Keyboard → Keyboard Shortcuts
+  1. Open Settings > Keyboard > Keyboard Shortcuts
   2. Click "+" to add custom shortcut
   3. Name: "Voice to Text"
   4. Command: /full/path/to/uv run /full/path/to/voice_to_text.py --record-once -d 5
@@ -622,11 +706,6 @@ Desktop Shortcut Setup (GNOME):
         help='Keep audio files instead of deleting them (for debugging)'
     )
     parser.add_argument(
-        '--no-beeps',
-        action='store_true',
-        help='Disable audio feedback beeps (for diagnostic purposes)'
-    )
-    parser.add_argument(
         '--record-once',
         action='store_true',
         help='Record once and exit (no keyboard monitoring, no input group needed)'
@@ -650,8 +729,7 @@ Desktop Shortcut Setup (GNOME):
         min_duration=args.min_duration,
         keep_audio=args.keep_audio,
         duration=args.duration,
-        no_hotkey=args.record_once,
-        no_beeps=args.no_beeps
+        no_hotkey=args.record_once
     )
     
     return service.run()
