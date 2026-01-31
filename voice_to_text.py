@@ -448,9 +448,13 @@ class VoiceToTextService:
         
         try:
             # Transcribe using pre-loaded model
+            # No language specified - Whisper will auto-detect
+            # This allows mixed Chinese/English transcription
             result = self.transcriber.model.transcribe(
                 self.current_audio_file,
-                verbose=False
+                verbose=False,
+                language=None,  # Auto-detect language (supports multilingual)
+                task='transcribe'  # Transcribe in original language(s)
             )
             text = result["text"].strip()
             

@@ -60,13 +60,22 @@ class AudioTranscriber:
         print("This may take a while...")
         
         try:
-            result = self.model.transcribe(str(audio_path), verbose=False)
+            # Auto-detect language and transcribe
+            # This supports multilingual content (e.g., mixed Chinese/English)
+            result = self.model.transcribe(
+                str(audio_path), 
+                verbose=False,
+                language=None,  # Auto-detect
+                task='transcribe'  # Transcribe in original language(s)
+            )
             text = result["text"].strip()
+            detected_language = result.get("language", "unknown")
             
             # Save transcription
             output_path.write_text(text, encoding='utf-8')
             
             print(f"✓ Saved to: {output_path.name}")
+            print(f"  Detected language: {detected_language}")
             print(f"  Text length: {len(text)} characters")
             
             return output_path
