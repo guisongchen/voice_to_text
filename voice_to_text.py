@@ -33,13 +33,15 @@ class VoiceToTextService:
     """Main service for voice-to-text input with global hotkey support."""
     
     def __init__(self, model_size='medium', min_duration=0.5, keep_audio=False, 
-                 duration=None, no_hotkey=False, wait_for_key=False):
+                 duration=None, no_hotkey=False, wait_for_key=False, use_pidfile=False):
         self.model_size = model_size
         self.min_duration = min_duration
         self.keep_audio = keep_audio
         self.fixed_duration = duration
         self.no_hotkey = no_hotkey
         self.wait_for_key = wait_for_key  # Wait for Alt+R to stop
+        self.use_pidfile = use_pidfile  # Use PID file + SIGUSR1 for stopping
+        self.pidfile = Path('/tmp/voice_to_text.pid')
         
         # State tracking
         self.is_recording = False
@@ -66,8 +68,10 @@ class VoiceToTextService:
         print("Voice-to-Text Input Tool")
         print("=" * 60)
         
-        # Skip keyboard device if in no-hotkey mode (unless wait_for_key is set)
-        if not self.no_hotkey or self.wait_for_key:
+        # Skip keyboard device if not needed
+        # Only needed for: hotkey mode OR wait_for_key mode
+        # NOT needed for: fixed duration OR PID file mode
+        if not self.no_hotkey or (self.wait_for_key and not self.use_pidfile):
             # Find keyboard device
             print("\n[1/3] Finding keyboard device...")
             self.keyboard_device = self._find_keyboard_device()
@@ -76,8 +80,9 @@ class VoiceToTextService:
                 print("  Make sure you're in the 'input' group:")
                 print("    sudo usermod -aG input $USER")
                 print("  Then log out and log back in.")
-                print("\n  Alternative: Use --record-once with -d flag (no keyboard access needed):")
-                print("    uv run voice_to_text.py --record-once -d 5")
+                print("\n  Alternatives:")
+                print("    • Fixed duration: uv run voice_to_text.py --record-once -d 5")
+                print("    • Toggle script: ./voice_to_text_toggle.sh (no input group needed)")
                 return False
             print(f"✓ Using keyboard: {self.keyboard_device.name}")
             
@@ -484,9 +489,13 @@ class VoiceToTextService:
         if not self.initialize():
             return 1
         
-        # Setup signal handler for graceful shutdown
+        # Setup signal handlers
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
+        
+        # Setup SIGUSR1 handler for stop signal (PID file mode)
+        if self.use_pidfile:
+            signal.signal(signal.SIGUSR1, self._sigusr1_handler)
         
         # Single recording mode (no hotkey monitoring)
         if self.no_hotkey:
@@ -495,10 +504,38 @@ class VoiceToTextService:
         # Continuous hotkey monitoring mode
         return self._run_hotkey_mode()
     
+    def _sigusr1_handler(self, signum, frame):
+        """Handle SIGUSR1 signal to stop recording."""
+        if self.is_recording:
+            print("\n[Received stop signal]")
+            self.is_recording = False
+    
     def _run_single_recording(self):
         """Run a single recording session without hotkey monitoring."""
         try:
-            if self.wait_for_key:
+            if self.use_pidfile:
+                # PID file mode - wait for SIGUSR1 signal to stop
+                print("\nStarting recording in 2 seconds...")
+                print("Run the same command again (or send SIGUSR1) to stop recording")
+                time.sleep(2)
+                
+                # Write PID file
+                self.pidfile.write_text(str(os.getpid()))
+                
+                self._start_recording()
+                
+                # Wait for signal to stop
+                while self.is_recording and not self.should_exit:
+                    time.sleep(0.1)
+                
+                # Clean up PID file
+                if self.pidfile.exists():
+                    self.pidfile.unlink()
+                
+                if self.is_recording:
+                    self._stop_recording()
+                    
+            elif self.wait_for_key:
                 # Wait for Alt+R to stop recording
                 print("\nStarting recording in 2 seconds...")
                 print("Press Alt+R again to stop recording")
@@ -622,6 +659,13 @@ class VoiceToTextService:
     
     def cleanup(self):
         """Clean up resources."""
+        # Clean up PID file if it exists
+        if self.use_pidfile and self.pidfile.exists():
+            try:
+                self.pidfile.unlink()
+            except Exception:
+                pass
+        
         self._close_output_stream()
         if self.pyaudio_instance:
             self.pyaudio_instance.terminate()
@@ -702,6 +746,9 @@ Examples:
   # Single recording with fixed 5 second duration
   uv run voice_to_text.py --record-once -d 5
   
+  # Use with toggle script (NO INPUT GROUP NEEDED)
+  ./voice_to_text_toggle.sh
+  
   # Use faster model
   uv run voice_to_text.py --record-once --model small
   
@@ -712,12 +759,17 @@ Examples:
   uv run voice_to_text.py --list-keyboards
 
 Desktop Shortcut Setup (GNOME):
+  
+  SECURE METHOD (no input group needed):
   1. Open Settings > Keyboard > Keyboard Shortcuts
   2. Click "+" to add custom shortcut
   3. Name: "Voice to Text"
-  4. Command: /full/path/to/uv run /full/path/to/voice_to_text.py --record-once
+  4. Command: /full/path/to/voice_to_text_toggle.sh
   5. Set shortcut: Alt+R
-  6. Now Alt+R starts recording, press Alt+R again to stop and insert text!
+  6. Press Alt+R to start, Alt+R again to stop!
+  
+  ALTERNATIVE (requires input group):
+  Command: /full/path/to/uv run /full/path/to/voice_to_text.py --record-once
         """
     )
     
@@ -747,7 +799,12 @@ Desktop Shortcut Setup (GNOME):
     parser.add_argument(
         '--record-once',
         action='store_true',
-        help='Record once and exit (requires input group for Alt+R stop)'
+        help='Record once and exit (use with --use-pidfile or -d for duration)'
+    )
+    parser.add_argument(
+        '--use-pidfile',
+        action='store_true',
+        help='Use PID file + SIGUSR1 for stopping (no keyboard monitoring)'
     )
     parser.add_argument(
         '--list-keyboards',
@@ -769,7 +826,8 @@ Desktop Shortcut Setup (GNOME):
         keep_audio=args.keep_audio,
         duration=args.duration,
         no_hotkey=args.record_once,
-        wait_for_key=(args.record_once and not args.duration)  # Wait for key if no duration
+        wait_for_key=(args.record_once and not args.duration and not args.use_pidfile),
+        use_pidfile=args.use_pidfile
     )
     
     return service.run()
