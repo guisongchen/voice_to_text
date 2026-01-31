@@ -24,10 +24,13 @@ from transcribe import AudioTranscriber
 class VoiceToTextService:
     """Main service for voice-to-text input with global hotkey support."""
     
-    def __init__(self, model_size='medium', min_duration=0.5, keep_audio=False):
+    def __init__(self, model_size='medium', min_duration=0.5, keep_audio=False, 
+                 duration=None, no_hotkey=False):
         self.model_size = model_size
         self.min_duration = min_duration
         self.keep_audio = keep_audio
+        self.fixed_duration = duration
+        self.no_hotkey = no_hotkey
         
         # State tracking
         self.is_recording = False
@@ -50,19 +53,27 @@ class VoiceToTextService:
         print("Voice-to-Text Input Tool")
         print("=" * 60)
         
-        # Find keyboard device
-        print("\n[1/3] Finding keyboard device...")
-        self.keyboard_device = self._find_keyboard_device()
-        if not self.keyboard_device:
-            print("✗ Error: No keyboard device found!")
-            print("  Make sure you're in the 'input' group:")
-            print("    sudo usermod -aG input $USER")
-            print("  Then log out and log back in.")
-            return False
-        print(f"✓ Using keyboard: {self.keyboard_device.name}")
+        # Skip keyboard device if in no-hotkey mode
+        if not self.no_hotkey:
+            # Find keyboard device
+            print("\n[1/3] Finding keyboard device...")
+            self.keyboard_device = self._find_keyboard_device()
+            if not self.keyboard_device:
+                print("✗ Error: No keyboard device found!")
+                print("  Make sure you're in the 'input' group:")
+                print("    sudo usermod -aG input $USER")
+                print("  Then log out and log back in.")
+                print("\n  Alternative: Use --record-once mode (no keyboard access needed):")
+                print("    uv run voice_to_text.py --record-once")
+                return False
+            print(f"✓ Using keyboard: {self.keyboard_device.name}")
+            
+            step = 2
+        else:
+            step = 1
         
         # Check ydotool
-        print("\n[2/3] Checking ydotool...")
+        print(f"\n[{step}/{2 if self.no_hotkey else 3}] Checking ydotool...")
         if not self._check_ydotool():
             print("✗ Error: ydotool not found or not working!")
             print("  Install with: sudo apt install ydotool")
@@ -71,8 +82,10 @@ class VoiceToTextService:
             return False
         print("✓ ydotool is available")
         
+        step += 1
+        
         # Pre-load Whisper model
-        print(f"\n[3/3] Loading Whisper model '{self.model_size}'...")
+        print(f"\n[{step}/{2 if self.no_hotkey else 3}] Loading Whisper model '{self.model_size}'...")
         print("  (This may take 5-10 seconds on first run)")
         try:
             self.transcriber = AudioTranscriber(model_size=self.model_size)
@@ -85,9 +98,15 @@ class VoiceToTextService:
         self.recorder = AudioRecorder()
         
         print("\n" + "=" * 60)
-        print("✓ Ready! Press and hold Alt+R to record speech")
-        print("  Release Alt+R to transcribe and insert text")
-        print("  Press Ctrl+C to exit")
+        if self.no_hotkey:
+            if self.fixed_duration:
+                print(f"✓ Ready! Recording will start in 2 seconds ({self.fixed_duration}s duration)")
+            else:
+                print("✓ Ready! Press Ctrl+C when done recording")
+        else:
+            print("✓ Ready! Press and hold Alt+R to record speech")
+            print("  Release Alt+R to transcribe and insert text")
+            print("  Press Ctrl+C to exit")
         print("=" * 60)
         
         return True
@@ -285,7 +304,7 @@ class VoiceToTextService:
         self.current_audio_file = None
     
     def run(self):
-        """Main event loop - listen for Alt+R hotkey."""
+        """Main event loop - listen for Alt+R hotkey or do single recording."""
         if not self.initialize():
             return 1
         
@@ -293,6 +312,52 @@ class VoiceToTextService:
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
         
+        # Single recording mode (no hotkey monitoring)
+        if self.no_hotkey:
+            return self._run_single_recording()
+        
+        # Continuous hotkey monitoring mode
+        return self._run_hotkey_mode()
+    
+    def _run_single_recording(self):
+        """Run a single recording session without hotkey monitoring."""
+        try:
+            if self.fixed_duration:
+                # Fixed duration recording
+                time.sleep(2)  # Give user time to focus the target window
+                self._start_recording()
+                time.sleep(self.fixed_duration)
+                self._stop_recording()
+            else:
+                # Manual stop with Ctrl+C
+                print("\nStarting recording in 2 seconds...")
+                print("Press Ctrl+C when done recording")
+                time.sleep(2)
+                self._start_recording()
+                
+                # Wait for Ctrl+C
+                while self.is_recording and not self.should_exit:
+                    time.sleep(0.1)
+                
+                if self.is_recording:
+                    self._stop_recording()
+        except KeyboardInterrupt:
+            print("\n\n⏹️  Stopping recording...")
+            if self.is_recording:
+                self.is_recording = False
+                time.sleep(0.5)  # Give recording thread time to finish
+                self._stop_recording()
+        except Exception as e:
+            print(f"\n✗ Error: {e}")
+            return 1
+        finally:
+            self.cleanup()
+        
+        print("\n👋 Done!")
+        return 0
+    
+    def _run_hotkey_mode(self):
+        """Run continuous hotkey monitoring mode."""
         # Track Alt key state
         alt_pressed = False
         r_pressed = False
@@ -383,7 +448,7 @@ def main():
         description="Voice-to-Text Input Tool - Press Alt+R to record and insert text",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-System Requirements:
+System Requirements (Hotkey Mode):
   1. User must be in 'input' group:
      sudo usermod -aG input $USER
      (then log out and back in)
@@ -393,23 +458,48 @@ System Requirements:
   
   3. NVIDIA GPU with CUDA for Whisper transcription
 
-Usage:
-  Press and hold Alt+R to start recording
-  Release Alt+R to stop and transcribe
-  Text will be inserted at cursor position
+SECURITY NOTE: 
+  Hotkey mode requires input group access. For a more secure approach,
+  use --record-once mode with desktop environment shortcuts.
+
+Usage Modes:
+
+  HOTKEY MODE (requires input group):
+    Press and hold Alt+R to start recording
+    Release Alt+R to stop and transcribe
+    Text will be inserted at cursor position
+
+  SINGLE RECORDING MODE (secure, no input group needed):
+    Use --record-once to record once and exit
+    Bind this command to Alt+R in GNOME Keyboard Settings
+    or run manually for voice input
 
 Examples:
-  # Run with default settings (medium model)
+  # Hotkey mode (requires input group)
   uv run voice_to_text.py
   
+  # Single recording with fixed 5 second duration (RECOMMENDED)
+  uv run voice_to_text.py --record-once -d 5
+  
+  # Single recording with manual stop (press Ctrl+C)
+  uv run voice_to_text.py --record-once
+  
   # Use faster model
-  uv run voice_to_text.py --model small
+  uv run voice_to_text.py --record-once --model small -d 3
   
   # Keep audio files for debugging
-  uv run voice_to_text.py --keep-audio
+  uv run voice_to_text.py --record-once --keep-audio -d 5
   
-  # List available keyboard devices
+  # List available keyboard devices (for hotkey mode)
   uv run voice_to_text.py --list-keyboards
+
+Desktop Shortcut Setup (GNOME):
+  1. Open Settings → Keyboard → Keyboard Shortcuts
+  2. Click "+" to add custom shortcut
+  3. Name: "Voice to Text"
+  4. Command: /full/path/to/uv run /full/path/to/voice_to_text.py --record-once -d 5
+  5. Set shortcut: Alt+R
+  6. Now Alt+R records for 5 seconds anywhere!
         """
     )
     
@@ -421,6 +511,11 @@ Examples:
         help='Whisper model size (default: medium per spec)'
     )
     parser.add_argument(
+        '-d', '--duration',
+        type=float,
+        help='Fixed recording duration in seconds (for --record-once mode)'
+    )
+    parser.add_argument(
         '--min-duration',
         type=float,
         default=0.5,
@@ -430,6 +525,11 @@ Examples:
         '--keep-audio',
         action='store_true',
         help='Keep audio files instead of deleting them'
+    )
+    parser.add_argument(
+        '--record-once',
+        action='store_true',
+        help='Record once and exit (no keyboard monitoring, no input group needed)'
     )
     parser.add_argument(
         '--list-keyboards',
@@ -448,7 +548,9 @@ Examples:
     service = VoiceToTextService(
         model_size=args.model,
         min_duration=args.min_duration,
-        keep_audio=args.keep_audio
+        keep_audio=args.keep_audio,
+        duration=args.duration,
+        no_hotkey=args.record_once
     )
     
     return service.run()

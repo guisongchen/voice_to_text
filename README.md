@@ -44,11 +44,13 @@ A Python CLI tool to record audio from your microphone and transcribe it to text
    sudo apt install ydotool
    ```
 
-3. **For voice-to-text tool**, add your user to the input group:
+3. **OPTIONAL - For hotkey mode only**, add your user to the input group:
    ```bash
    sudo usermod -aG input $USER
    ```
-   **Important**: Log out and log back in for group changes to take effect!
+   **Security Note**: This gives access to all input devices. **Skip this step** if using `--record-once` mode with desktop shortcuts (recommended).
+   
+   **Important**: If you do add yourself to input group, log out and log back in for changes to take effect!
 
 4. Ensure NVIDIA GPU drivers and CUDA are installed:
    ```bash
@@ -64,9 +66,42 @@ A Python CLI tool to record audio from your microphone and transcribe it to text
 
 ### ⌨️ Voice-to-Text Input Tool
 
-**NEW!** System-wide voice input with hotkey support. Press and hold `Alt+R` to record speech, release to transcribe and automatically insert text at your cursor position - works in any application!
+**NEW!** System-wide voice input with hotkey support. Press `Alt+R` to record speech, transcribe, and automatically insert text at your cursor position - works in any application!
 
-#### Quick Start
+**Two Modes Available:**
+- **🔒 Secure Mode** (Recommended): `--record-once` with desktop shortcut - no input group needed
+- **⚡ Hotkey Mode**: Continuous monitoring - requires input group access
+
+#### Quick Start (Secure Mode - Recommended)
+
+**Step 1: Test the tool**
+```bash
+# Record for 5 seconds, then transcribe and insert
+uv run voice_to_text.py --record-once -d 5
+```
+
+**Step 2: Set up GNOME keyboard shortcut**
+1. Open **Settings → Keyboard → Keyboard Shortcuts**
+2. Scroll down and click **"+"** to add custom shortcut
+3. **Name**: `Voice to Text`
+4. **Command**: 
+   ```
+   /usr/bin/bash -c "cd /home/YOUR_USERNAME/vibe_projects/audio_recorder && /home/YOUR_USERNAME/.local/bin/uv run voice_to_text.py --record-once -d 5"
+   ```
+   (Replace `YOUR_USERNAME` with your actual username)
+5. Click **Set Shortcut** and press `Alt+R`
+6. Done! Now `Alt+R` works system-wide
+
+**How to use:**
+1. **Focus any application** (browser, editor, terminal, etc.)
+2. **Press Alt+R** - Recording starts, tool counts down 5 seconds
+3. **Speak clearly** - Your speech is being recorded
+4. **Wait** - Transcription happens automatically
+5. **Text appears** - Inserted at your cursor position!
+
+#### Alternative: Hotkey Mode (Requires Input Group)
+
+If you prefer continuous monitoring and have added yourself to the input group:
 
 ```bash
 # Start the voice-to-text service
@@ -79,31 +114,70 @@ Once running:
 3. **Release Alt+R** - Recording stops, transcription begins
 4. **Text appears** - Transcribed text is automatically inserted at cursor
 
+#### Alternative: Hotkey Mode (Requires Input Group)
+
+If you prefer continuous monitoring and have added yourself to the input group:
+
+```bash
+# Start the voice-to-text service (continuous mode)
+uv run voice_to_text.py
+```
+
+Once running:
+1. **Press and hold Alt+R** - Recording starts immediately
+2. **Speak clearly** - Your voice is being recorded
+3. **Release Alt+R** - Recording stops, transcription begins
+4. **Text appears** - Transcribed text is automatically inserted at cursor
+
+**Security Warning**: This mode requires `input` group membership which grants access to all keyboard/mouse events.
+
 #### Features
 
 - 🌍 **System-wide**: Works in browser, text editor, terminal, any application
-- ⚡ **Fast**: Pre-loaded model, transcription starts immediately after release
+- 🔒 **Secure Option**: `--record-once` mode needs no special permissions
+- ⚡ **Fast**: Pre-loaded model, transcription starts immediately
 - 🔒 **Private**: Fully offline, no internet required
 - 🎯 **Accurate**: Uses OpenAI Whisper medium model by default
 - 🌏 **Multilingual**: Auto-detects Chinese, English, and many other languages
 
 #### Voice-to-Text Options
 
+**Secure mode with different durations:**
+```bash
+# 3 second recording (quick notes)
+uv run voice_to_text.py --record-once -d 3
+
+# 10 second recording (longer input)
+uv run voice_to_text.py --record-once -d 10
+
+# Manual stop with Ctrl+C (variable length)
+uv run voice_to_text.py --record-once
+```
+
 **Use a different Whisper model:**
 ```bash
 # Faster transcription (less accurate)
-uv run voice_to_text.py --model small
+uv run voice_to_text.py --record-once -d 5 --model small
 
 # Best accuracy (slower)
-uv run voice_to_text.py --model large
+uv run voice_to_text.py --record-once -d 5 --model large
 ```
 
 **Keep audio files for debugging:**
 ```bash
-uv run voice_to_text.py --keep-audio
+uv run voice_to_text.py --record-once -d 5 --keep-audio
 ```
 
-**List available keyboard devices:**
+**For hotkey mode (requires input group):**
+```bash
+# Continuous monitoring with default settings
+uv run voice_to_text.py
+
+# With different model
+uv run voice_to_text.py --model small
+```
+
+**List available keyboard devices (hotkey mode troubleshooting):**
 ```bash
 uv run voice_to_text.py --list-keyboards
 ```
@@ -115,12 +189,21 @@ uv run voice_to_text.py --min-duration 1.0  # Ignore recordings < 1 second
 
 #### Troubleshooting
 
-**"Permission denied" error:**
+**"Permission denied" error (hotkey mode only):**
 ```bash
-# Add your user to the input group
+# Option 1: Use secure --record-once mode (RECOMMENDED)
+uv run voice_to_text.py --record-once -d 5
+
+# Option 2: Add yourself to input group (less secure)
 sudo usermod -aG input $USER
 # Then log out and log back in
 ```
+
+**Desktop shortcut not working:**
+- Ensure you used full absolute paths in the command
+- Test the command in terminal first
+- Check `~/.local/bin/uv` exists, or use `which uv` to find the path
+- Make sure ydotool daemon is running: `systemctl --user start ydotoold`
 
 **"ydotool not found" error:**
 ```bash
@@ -132,7 +215,8 @@ systemctl --user start ydotoold
 systemctl --user enable ydotoold  # Auto-start on boot
 ```
 
-**Alt+R not detected:**
+**Alt+R not detected (hotkey mode only):**
+- Switch to `--record-once` mode with desktop shortcut (recommended)
 - Check available keyboards with `--list-keyboards`
 - Make sure you're in the input group
 - Try restarting after adding to input group
@@ -141,6 +225,7 @@ systemctl --user enable ydotoold  # Auto-start on boot
 - Verify ydotool works: `ydotool type "test"`
 - If error, start ydotoold: `systemctl --user start ydotoold`
 - Check that the target application accepts keyboard input
+- Try focusing the target window before pressing Alt+R
 
 **Transcription quality issues:**
 - Speak clearly and at normal pace

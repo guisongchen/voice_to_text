@@ -1,8 +1,66 @@
 # Voice-to-Text Tool - Quick Reference Guide
 
+## 🔒 Secure Mode (Recommended)
+
+**No input group permissions needed!** Use `--record-once` mode with desktop shortcuts.
+
+### Quick Setup (5 minutes)
+
+1. **Install ydotool**:
+   ```bash
+   sudo apt install ydotool
+   systemctl --user start ydotoold
+   systemctl --user enable ydotoold
+   ```
+
+2. **Test the command**:
+   ```bash
+   cd /home/YOUR_USERNAME/vibe_projects/audio_recorder
+   uv run voice_to_text.py --record-once -d 5
+   # Speak after 2 seconds, text will be inserted!
+   ```
+
+3. **Create GNOME Keyboard Shortcut**:
+   - Open **Settings → Keyboard → Keyboard Shortcuts**
+   - Click **"+"** to add custom shortcut
+   - **Name**: Voice to Text
+   - **Command**: 
+     ```
+     /usr/bin/bash -c "cd /home/YOUR_USERNAME/vibe_projects/audio_recorder && /home/YOUR_USERNAME/.local/bin/uv run voice_to_text.py --record-once -d 5"
+     ```
+   - **Shortcut**: Press `Alt+R`
+   - Done!
+
+4. **Use it**: Press `Alt+R` anywhere, speak for 5 seconds, text appears!
+
+---
+
 ## Setup Checklist
 
-### 1. Install System Dependencies
+### For Secure Mode (Recommended)
+
+1. **Install ydotool**:
+   ```bash
+   sudo apt install ydotool
+   systemctl --user start ydotoold
+   systemctl --user enable ydotoold
+   ```
+
+2. **Install Python dependencies**:
+   ```bash
+   cd /path/to/audio_recorder
+   uv sync
+   ```
+
+3. **Set up desktop shortcut** (see above)
+
+**No input group needed!** ✅ More secure.
+
+### For Hotkey Mode (Less Secure)
+
+Only follow these if you need continuous monitoring mode:
+
+1. **Install System Dependencies**
 ```bash
 # Install ydotool for text insertion (Wayland)
 sudo apt install ydotool
