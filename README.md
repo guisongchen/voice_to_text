@@ -1,14 +1,18 @@
-# Audio Recorder
+# Audio Recorder with Whisper Transcription
 
 A Python CLI tool to record audio from your microphone and transcribe it to text using OpenAI's Whisper.
 
+**🚀 Main Tool: `record.py`** - Records audio and transcribes in one command (see [Quick Start](#-quick-start-with-recordpy-recommended))
+
 ## Features
 
-- 🎤 Record audio from microphone and save as WAV files
+- 🎤 **One-command workflow**: Record and transcribe with `record.py`
 - 📝 Transcribe audio files to text using Whisper AI
 - 🚀 GPU-accelerated transcription (CUDA required)
+- 🌏 Supports multiple languages (Chinese, English, etc.)
 - ⚙️ Configurable sample rate, channels, and recording duration
 - 🎯 Multiple Whisper model sizes for speed/accuracy tradeoff
+- 💾 Optional audio file deletion to save space
 - 📦 Batch transcription support
 
 ## Requirements
@@ -43,38 +47,48 @@ A Python CLI tool to record audio from your microphone and transcribe it to text
 
 ## Usage
 
-### Quick Start: Record + Transcribe (Recommended)
+### 🚀 Quick Start with `record.py` (Recommended)
 
-The easiest way to use this tool is with the integrated CLI that records and transcribes in one command:
+The easiest way to use this tool is with **`record.py`** - an integrated CLI that records and transcribes in one command:
 
-#### Basic usage (10 seconds):
+**Basic usage (10 seconds):**
 ```bash
 uv run record.py
 ```
 
-#### Record for 30 seconds:
+**Record for 30 seconds:**
 ```bash
 uv run record.py -d 30
 ```
 
-#### Use faster model:
+**Use faster model:**
 ```bash
 uv run record.py -d 15 -m tiny
 ```
 
-#### Delete audio after transcription (save space):
+**Delete audio after transcription (save space):**
 ```bash
 uv run record.py --delete-audio
 ```
 
-#### Transcribe existing file without recording:
+**Record only, skip transcription:**
+```bash
+uv run record.py --no-transcribe -d 60
+```
+
+**Transcribe existing file without recording:**
 ```bash
 uv run record.py --transcribe-only existing.wav
 ```
 
-### Advanced: Separate Recording and Transcription
+**List available microphones:**
+```bash
+uv run record.py --list-devices
+```
 
-You can also use the tools separately for more control:
+### 📋 Advanced: Separate Recording and Transcription
+
+If you need more control, you can use the tools separately:
 
 #### Recording Audio Only
 
