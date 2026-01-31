@@ -513,7 +513,6 @@ class VoiceToTextService:
     
     def _sigusr1_handler(self, signum, frame):
         """Handle SIGUSR1 signal to stop recording."""
-        print("\n[Received stop signal]")
         self.stop_signal_received = True
     
     def _run_single_recording(self):
@@ -521,33 +520,26 @@ class VoiceToTextService:
         try:
             if self.use_pidfile:
                 # PID file mode - wait for SIGUSR1 signal to stop
-                print("\nStarting recording in 2 seconds...", flush=True)
-                print("Run the same command again (or send SIGUSR1) to stop recording", flush=True)
+                print("\nStarting recording in 2 seconds...")
+                print("Run the same command again (or send SIGUSR1) to stop recording")
                 time.sleep(2)
                 
                 # Write PID file
                 self.pidfile.write_text(str(os.getpid()))
-                print(f"PID {os.getpid()} written to {self.pidfile}", flush=True)
                 
                 self._start_recording()
                 
                 # Wait for signal to stop
-                print("Waiting for stop signal...", flush=True)
                 while not self.stop_signal_received and not self.should_exit:
                     time.sleep(0.1)
-                
-                print("Stop signal received, stopping recording...", flush=True)
                 
                 # Stop recording and transcribe
                 if self.is_recording:
                     self._stop_recording()
                 
-                print("Recording stopped, cleaning up PID file...", flush=True)
-                
                 # Clean up PID file
                 if self.pidfile.exists():
                     self.pidfile.unlink()
-                    print("PID file removed", flush=True)
                     
             elif self.wait_for_key:
                 # Wait for Alt+R to stop recording
@@ -588,14 +580,10 @@ class VoiceToTextService:
                 self._stop_recording()
         except Exception as e:
             print(f"\n✗ Error: {e}", flush=True)
-            import traceback
-            traceback.print_exc()
             return 1
         finally:
-            print("Cleaning up resources...", flush=True)
             self.cleanup()
         
-        print("\n👋 Done! Exiting...", flush=True)
         return 0
     
     def _wait_for_stop_key(self):
@@ -676,27 +664,21 @@ class VoiceToTextService:
     
     def cleanup(self):
         """Clean up resources."""
-        print("  - Cleaning up PID file...", flush=True)
         # Clean up PID file if it exists
         if self.use_pidfile and self.pidfile.exists():
             try:
                 self.pidfile.unlink()
-                print("    ✓ PID file removed", flush=True)
-            except Exception as e:
-                print(f"    ! PID file cleanup error: {e}", flush=True)
+            except Exception:
+                pass
         
-        print("  - Closing audio streams...", flush=True)
         self._close_output_stream()
         if self.pyaudio_instance:
             self.pyaudio_instance.terminate()
             self.pyaudio_instance = None
-            print("    ✓ PyAudio terminated", flush=True)
         if self.recorder:
             self.recorder.close()
-            print("    ✓ Recorder closed", flush=True)
         if self.current_audio_file:
             self._cleanup_audio_file()
-        print("  ✓ Cleanup complete", flush=True)
 
 
 def list_keyboard_devices():
