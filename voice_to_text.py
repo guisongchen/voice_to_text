@@ -262,14 +262,14 @@ class VoiceToTextService:
         """
         try:
             if beep_type == 'start':
-                # Two beeps for start
-                beep = self._generate_beep_tone(frequency=880, duration=0.15)
+                # Quick double beep for start
+                beep = self._generate_beep_tone(frequency=880, duration=0.08)
                 self._play_tone(beep)
-                time.sleep(0.1)  # Pause between beeps
+                time.sleep(0.04)  # Short pause between beeps
                 self._play_tone(beep)
             else:  # finish
-                # Single beep for finish
-                beep = self._generate_beep_tone(frequency=660, duration=0.2)
+                # Single quick beep for finish
+                beep = self._generate_beep_tone(frequency=660, duration=0.1)
                 self._play_tone(beep)
                 
         except Exception as e:
@@ -306,8 +306,8 @@ class VoiceToTextService:
         
         # Play start beep
         self._play_beep('start')
-        # Short delay for beep to finish
-        time.sleep(0.3)
+        # Minimal delay - just let beep finish playing
+        time.sleep(0.05)
         
         self.is_recording = True
         self.recording_start_time = time.time()
@@ -344,8 +344,8 @@ class VoiceToTextService:
             )
             
             # INPUT WARM-UP: Discard initial chunks to avoid mic activation noise
-            # PipeWire needs ~1 second to fully activate the input stream
-            warmup_chunks = 50  # ~1.2 seconds at default chunk size
+            # Minimal warm-up since output stream keep-alive prevents most issues
+            warmup_chunks = 3  # ~70ms - just enough to stabilize
             for i in range(warmup_chunks):
                 if not self.is_recording:
                     break
@@ -365,9 +365,8 @@ class VoiceToTextService:
                     print(f"  Recording error: {e}")
                     break
             
-            # COOL-DOWN: Keep reading for a bit to avoid end noise
-            # This helps PipeWire cleanly close the stream
-            cooldown_chunks = 10  # ~230ms
+            # COOL-DOWN: Minimal cool-down since output stream stays active
+            cooldown_chunks = 2  # ~50ms - just for clean closure
             for _ in range(cooldown_chunks):
                 try:
                     stream.read(self.recorder.chunk_size, exception_on_overflow=False)
@@ -401,9 +400,7 @@ class VoiceToTextService:
         if self.recording_thread:
             self.recording_thread.join(timeout=3.0)
         
-        # Play finish beep AFTER recording has stopped
-        # Short delay before beep (stream is already closed cleanly)
-        time.sleep(0.2)
+        # Play finish beep immediately
         self._play_beep('finish')
         
         # Close output stream now that we're done with audio
