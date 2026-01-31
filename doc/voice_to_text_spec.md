@@ -6,20 +6,20 @@
 |-----------|-------|
 | Project Name | Voice-to-Text Input Tool |
 | Target Platform | Ubuntu Linux |
-| Core Function | System-wide voice input triggered by desktop shortcut or fixed duration, with automatic text insertion at cursor position |
+| Core Function | System-wide voice input triggered by desktop shortcut, with automatic text insertion at cursor position |
 
 ---
 
 ## 2. Functional Requirements
 
-### FR-01: Recording Control via Desktop Shortcut or Fixed Duration
+### FR-01: Recording Control via Desktop Shortcut
 
 | Attribute | Description |
 |-----------|-------------|
 | ID | FR-01 |
-| Modes | 1. Desktop shortcut toggle (PID file + SIGUSR1) 2. Fixed duration recording |
-| Start Trigger | Command execution (desktop shortcut) or timer |
-| Stop Trigger | SIGUSR1 signal (toggle) or timer expiration |
+| Mode | Desktop shortcut toggle (PID file + SIGUSR1) |
+| Start Trigger | Command execution (desktop shortcut) |
+| Stop Trigger | SIGUSR1 signal (toggle) |
 | Scope | System-wide (works in any application) |
 
 ### FR-02: Speech-to-Text Conversion
@@ -46,7 +46,7 @@
 
 ## 3. User Flow
 
-**Note**: Original hotkey mode has been removed. Current implementation uses desktop shortcut toggle or fixed duration recording.
+**Note**: Original hotkey mode has been removed. Current implementation uses desktop shortcut toggle only.
 
 ```
 ┌─────────────────────────────────────────────┐

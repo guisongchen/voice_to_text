@@ -32,8 +32,8 @@ else
     echo "Starting recording..."
     cd "$SCRIPT_DIR"
     
-    # Start recording in background with PID file mode
-    nohup uv run voice-to-text --record-once --use-pidfile > /tmp/voice_to_text.log 2>&1 &
+    # Start recording in background (always uses PID file mode)
+    nohup uv run voice-to-text > /tmp/voice_to_text.log 2>&1 &
     
     # Small delay to let it initialize
     sleep 0.5

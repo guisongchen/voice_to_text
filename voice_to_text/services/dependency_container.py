@@ -5,7 +5,6 @@ Dependency injection container for voice-to-text service.
 from ..core.audio_service import AudioService
 from ..core.audio_feedback import AudioFeedback
 from ..core.text_inserter import TextInserter
-from ..modes.fixed_duration_mode import FixedDurationMode
 from ..modes.pid_file_mode import PidFileMode
 
 from ..transcribe import AudioTranscriber
@@ -66,42 +65,16 @@ class DependencyContainer:
         Create the appropriate mode based on configuration.
 
         Returns:
-            BaseMode instance
+            BaseMode instance (always PidFileMode)
         """
-        use_pidfile = self.config.get('use_pidfile', False)
-        duration = self.config.get('duration', None)
-
-        if duration is not None:
-            # Fixed duration mode
-            return FixedDurationMode(
-                self.audio_service,
-                self.text_inserter,
-                self.audio_feedback,
-                self.transcriber,
-                self.config
-            )
-        elif use_pidfile:
-            # PID file mode
-            return PidFileMode(
-                self.audio_service,
-                self.text_inserter,
-                self.audio_feedback,
-                self.transcriber,
-                self.config
-            )
-        else:
-            # Default: Fixed duration mode with default duration
-            # Ensure duration is set in config
-            config = self.config.copy()
-            from ..core.config import DEFAULT_RECORDING_DURATION
-            config['duration'] = DEFAULT_RECORDING_DURATION
-            return FixedDurationMode(
-                self.audio_service,
-                self.text_inserter,
-                self.audio_feedback,
-                self.transcriber,
-                config
-            )
+        # Always use PID file mode
+        return PidFileMode(
+            self.audio_service,
+            self.text_inserter,
+            self.audio_feedback,
+            self.transcriber,
+            self.config
+        )
 
     def cleanup(self):
         """Clean up all resources."""

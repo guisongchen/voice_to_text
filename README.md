@@ -13,7 +13,7 @@ A Python CLI tool to record audio from your microphone and transcribe it to text
 - 📝 Transcribe audio files to text using Whisper AI
 - 🚀 GPU-accelerated transcription (CUDA required)
 - 🌏 Supports multiple languages (Chinese, English, etc.)
-- ⚙️ Fixed sample rate (44100Hz) and stereo channels; configurable recording duration
+- ⚙️ Fixed sample rate (44100Hz) and stereo channels
 - 🎯 Multiple Whisper model sizes for speed/accuracy tradeoff
 - 💾 Optional audio file deletion to save space
 - 📦 Batch transcription support
@@ -60,10 +60,7 @@ A Python CLI tool to record audio from your microphone and transcribe it to text
 
 **NEW!** System-wide voice input with hotkey support. Press `Alt+R` to record speech, transcribe, and automatically insert text at your cursor position - works in any application!
 
-**Modes Available:**
-- **🔒 Secure Mode** (Recommended): `--record-once` with desktop shortcut - no special permissions needed
-
-#### Quick Start (Secure Mode - Recommended)
+#### Quick Start (Recommended)
 
 **No special permissions needed!** Uses signal-based approach instead of keyboard monitoring.
 
@@ -71,9 +68,6 @@ A Python CLI tool to record audio from your microphone and transcribe it to text
 ```bash
 # Test with toggle script (RECOMMENDED - no input group needed)
 ./voice_to_text_toggle.sh
-
-# Or test with fixed duration (also no input group)
-uv run voice-to-text --record-once -d 5
 ```
 
 **Step 2: Set up GNOME keyboard shortcut**
@@ -82,7 +76,7 @@ uv run voice-to-text --record-once -d 5
 3. **Name**: `Voice to Text`
 4. **Command**: 
    ```
-   /home/YOUR_USERNAME/vibe_projects/audio_recorder/voice_to_text_toggle.sh
+   /home/YOUR_USERNAME/vibe_projects/voice_to_text/voice_to_text_toggle.sh
    ```
    (Replace `YOUR_USERNAME` with your actual username - use full absolute path)
 5. Click **Set Shortcut** and press `Alt+R`
@@ -115,26 +109,22 @@ uv run voice-to-text --record-once -d 5
 
 **Basic usage:**
 ```bash
-# Manual stop with Alt+R (RECOMMENDED)
-uv run voice-to-text --record-once
-
-# Fixed duration recording
-uv run voice-to-text --record-once -d 3   # 3 seconds
-uv run voice-to-text --record-once -d 10  # 10 seconds
+# Start recording (waits for SIGUSR1 to stop)
+uv run voice-to-text
 ```
 
 **Use a different Whisper model:**
 ```bash
 # Faster transcription (less accurate)
-uv run voice-to-text --record-once --model small
+uv run voice-to-text --model small
 
 # Best accuracy (slower)
-uv run voice-to-text --record-once --model large
+uv run voice-to-text --model large
 ```
 
 **Keep audio files for debugging:**
 ```bash
-uv run voice-to-text --record-once --keep-audio
+uv run voice-to-text --keep-audio
 ```
 
 
@@ -156,11 +146,10 @@ sudo apt install xdotool
 xdotool type "test"
 ```
 
-**Alt+R not detected (hotkey mode only):**
-- Switch to `--record-once` mode with desktop shortcut (recommended)
-- Check available keyboards with `--list-keyboards`
-- Make sure you're in the input group
-- Try restarting after adding to input group
+**Alt+R not detected:**
+- Make sure desktop shortcut is properly configured
+- Check that the toggle script has execute permissions
+- Test the command in terminal first
 
 **Text not inserting:**
 - Verify xdotool works: `xdotool type "test"`
@@ -196,14 +185,9 @@ The easiest way to use this tool is with **`record`** - an integrated CLI that r
 uv run record
 ```
 
-**Record for 30 seconds:**
-```bash
-uv run record -d 30
-```
-
 **Use faster model:**
 ```bash
-uv run record -d 15 -m tiny
+uv run record -m tiny
 ```
 
 **Delete audio after transcription (save space):**
@@ -233,10 +217,7 @@ Basic recording (10 seconds, default settings):
 uv run record
 ```
 
-Custom duration:
-```bash
-uv run record -d 30  # Record for 30 seconds
-```
+Record for 10 seconds (default):
 
 Specify output filename:
 ```bash
@@ -288,7 +269,6 @@ uv run transcribe.py --force --all
 ### Integrated CLI (record)
 
 **Recording Options:**
-- `-d, --duration`: Recording duration in seconds (default: 10)
 - `-o, --output`: Output filename (default: recording_TIMESTAMP.wav)
 
 **Transcription Options:**
@@ -299,9 +279,8 @@ uv run transcribe.py --force --all
 **Special Modes:**
 - `--transcribe-only FILE`: Transcribe existing file without recording
 
-### Audio Recorder (record command)
+### Integrated CLI (record)
 
-- `-d, --duration`: Recording duration in seconds (default: 10)
 - `-o, --output`: Output filename (default: recording_TIMESTAMP.wav)
 
 ### Transcriber (transcribe.py)

@@ -109,9 +109,9 @@ class BaseMode(ABC):
         # Close output stream now that we're done with audio
         self.audio_feedback.close_output_stream()
 
-        # Check minimum duration
-        if duration < self.config.get('min_duration', 0.5):
-            print(f"  ⚠ Recording too short (< {self.config['min_duration']}s), ignoring")
+        # Check minimum duration (hardcoded to 0.5 seconds)
+        if duration < 0.5:
+            print(f"  ⚠ Recording too short (< 0.5s), ignoring")
             self._cleanup_audio_file()
             return
 

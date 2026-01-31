@@ -22,14 +22,11 @@ Examples:
   # Record 10 seconds and transcribe (default)
   record
 
-  # Record for 30 seconds
-  record -d 30
-
   # Record with custom filename
   record -o interview.wav
 
   # Use smaller model for faster transcription
-  record -m tiny -d 5
+  record -m tiny
 
   # Delete audio file after transcription
   record --delete-audio
@@ -39,7 +36,6 @@ Examples:
 
 
 Recording Options:
-  -d, --duration     Recording duration in seconds (default: 10)
   -o, --output       Output filename (default: recording_TIMESTAMP.wav)
 
 Transcription Options:
@@ -52,13 +48,7 @@ Other Options:
         """
     )
 
-    # Recording options
-    parser.add_argument(
-        '-d', '--duration',
-        type=int,
-        default=10,
-        help='Recording duration in seconds (default: 10)'
-    )
+    # Recording options (duration is hardcoded to 10 seconds)
     parser.add_argument(
         '-o', '--output',
         type=str,
@@ -93,6 +83,9 @@ Other Options:
     )
 
     args = parser.parse_args()
+
+    # Hardcode duration to 10 seconds
+    args.duration = 10
 
 
     # Transcribe-only mode

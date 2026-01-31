@@ -12,28 +12,18 @@ from .dependency_container import DependencyContainer
 class VoiceToTextService:
     """Main service for voice-to-text input."""
 
-    def __init__(self, model_size='medium', min_duration=0.5, keep_audio=False,
-                 duration=None, no_hotkey=False, wait_for_key=False, use_pidfile=False):
+    def __init__(self, model_size='medium', keep_audio=False):
         """
         Initialize voice-to-text service.
 
         Args:
             model_size: Whisper model size
-            min_duration: Minimum recording duration in seconds
             keep_audio: Keep audio files instead of deleting them
-            duration: Fixed recording duration (for fixed duration mode)
-            no_hotkey: Unused (kept for backward compatibility)
-            wait_for_key: Unused (kept for backward compatibility)
-            use_pidfile: Use PID file + SIGUSR1 for stopping
         """
         self.config = {
             'model_size': model_size,
-            'min_duration': min_duration,
             'keep_audio': keep_audio,
-            'duration': duration,
-            'no_hotkey': no_hotkey,
-            'wait_for_key': wait_for_key,
-            'use_pidfile': use_pidfile
+            'use_pidfile': True  # Always use PID file mode
         }
 
         self.dependency_container = None

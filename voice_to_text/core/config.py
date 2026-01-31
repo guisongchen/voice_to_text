@@ -38,6 +38,3 @@ MIN_DURATION_DEFAULT = 0.5  # seconds
 MODEL_SIZE_DEFAULT = 'medium'
 MODEL_CHOICES = ['tiny', 'base', 'small', 'medium', 'large']
 
-# Default recording duration
-DEFAULT_RECORDING_DURATION = 10  # seconds
-
