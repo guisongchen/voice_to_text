@@ -212,15 +212,18 @@ class VoiceToTextService:
         if self.is_recording:
             return
         
+        # Play start beep BEFORE starting recording
+        self._play_beep('start')
+        
+        # Wait for beep to finish and audio system to settle (300ms)
+        time.sleep(0.3)
+        
         self.is_recording = True
         self.recording_start_time = time.time()
         
         # Create temporary file for recording
         temp_fd, temp_path = tempfile.mkstemp(suffix='.wav', prefix='voice_to_text_')
         self.current_audio_file = temp_path
-        
-        # Play start beep
-        self._play_beep('start')
         
         print("\n🎤 Recording... (release Alt+R to stop)")
         
@@ -275,14 +278,17 @@ class VoiceToTextService:
         self.is_recording = False
         duration = time.time() - self.recording_start_time
         
-        # Play finish beep
-        self._play_beep('finish')
-        
         print(f"⏹️  Stopped (duration: {duration:.1f}s)")
         
         # Wait for recording thread to finish
         if self.recording_thread:
             self.recording_thread.join(timeout=2.0)
+        
+        # Wait for audio system to settle before playing beep (200ms)
+        time.sleep(0.2)
+        
+        # Play finish beep AFTER recording has stopped
+        self._play_beep('finish')
         
         # Check if recording was successful
         try:
