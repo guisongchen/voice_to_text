@@ -2,19 +2,21 @@
 
 ## Project Overview
 
-A Python CLI application with two main scripts:
+A Python CLI application with three main scripts:
+- `record.py`: **Integrated CLI** - Records audio and automatically transcribes it in one command (recommended)
 - `audio_recorder.py`: Records audio from microphone and saves as WAV files
 - `transcribe.py`: Transcribes audio files to text using OpenAI's Whisper model
 
-Both scripts are standalone executables with their own CLI interfaces.
+The integrated CLI (`record.py`) combines both tools for a seamless workflow.
 
 ## Architecture
 
-**Two-script structure:**
+**Three-script structure:**
+- `record.py` (~200 lines): Integrated CLI that imports and uses both AudioRecorder and AudioTranscriber
 - `audio_recorder.py` (~135 lines): AudioRecorder class, PyAudio operations, WAV file writing
 - `transcribe.py` (~220 lines): AudioTranscriber class, Whisper model loading, batch processing
-- Both use class-based architecture with main() CLI entry points
-- Scripts are independent - can use separately or together
+- All use class-based architecture with main() CLI entry points
+- Scripts can be used independently or via the integrated CLI
 
 **Key components:**
 - PyAudio for audio stream management (recording)
@@ -23,8 +25,8 @@ Both scripts are standalone executables with their own CLI interfaces.
 - No external configuration files or state persistence
 
 **Data flow:**
-1. Record: microphone → PyAudio → WAV file
-2. Transcribe: WAV file → Whisper model → text file
+1. Integrated: microphone → PyAudio → WAV file → Whisper model → text file (automatic)
+2. Separate: Record (microphone → WAV) → Transcribe (WAV → text)
 
 ## Package Management
 
@@ -37,8 +39,12 @@ uv sync              # Install dependencies
 
 **Running the application:**
 ```bash
-uv run audio_recorder.py [options]   # Record audio
-uv run transcribe.py [options]       # Transcribe audio
+# Recommended: Integrated CLI
+uv run record.py [options]             # Record + transcribe in one command
+
+# Alternative: Separate tools
+uv run audio_recorder.py [options]     # Record audio only
+uv run transcribe.py [options]         # Transcribe audio only
 ```
 
 **Adding dependencies:**
@@ -118,7 +124,22 @@ The `AudioRecorder` class uses `pyaudio.PyAudio()` which must be terminated. Alw
 
 There are no automated tests. To verify functionality:
 
-**Test recording:**
+**Test integrated CLI (recommended):**
+```bash
+# Quick 5-second recording + transcription
+uv run record.py -d 5 -m tiny
+
+# Test transcribe-only mode
+uv run record.py --transcribe-only recording_*.wav
+
+# Test with audio deletion
+uv run record.py -d 5 --delete-audio
+
+# List available devices
+uv run record.py --list-devices
+```
+
+**Test recording separately:**
 ```bash
 # List available input devices
 uv run audio_recorder.py --list-devices
@@ -130,7 +151,7 @@ uv run audio_recorder.py -d 3
 ls -lh recording_*.wav
 ```
 
-**Test transcription:**
+**Test transcription separately:**
 ```bash
 # Transcribe a test recording with tiny model (fast)
 uv run transcribe.py -m tiny recording_20260131_110558.wav
@@ -149,6 +170,11 @@ ls -lh *.txt
 ```
 
 ## Common Development Tasks
+
+**Adding CLI arguments to integrated tool:**
+- Add to argparse in `record.py` main() function
+- Pass through to AudioRecorder or AudioTranscriber calls
+- Consider if the option should also be added to standalone scripts
 
 **Adding CLI arguments to recorder:**
 - Add to argparse in `audio_recorder.py` main() function

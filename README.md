@@ -43,58 +43,91 @@ A Python CLI tool to record audio from your microphone and transcribe it to text
 
 ## Usage
 
-### Recording Audio
+### Quick Start: Record + Transcribe (Recommended)
 
-#### Basic recording (10 seconds, default settings):
+The easiest way to use this tool is with the integrated CLI that records and transcribes in one command:
+
+#### Basic usage (10 seconds):
+```bash
+uv run record.py
+```
+
+#### Record for 30 seconds:
+```bash
+uv run record.py -d 30
+```
+
+#### Use faster model:
+```bash
+uv run record.py -d 15 -m tiny
+```
+
+#### Delete audio after transcription (save space):
+```bash
+uv run record.py --delete-audio
+```
+
+#### Transcribe existing file without recording:
+```bash
+uv run record.py --transcribe-only existing.wav
+```
+
+### Advanced: Separate Recording and Transcription
+
+You can also use the tools separately for more control:
+
+#### Recording Audio Only
+
+Basic recording (10 seconds, default settings):
 ```bash
 uv run audio_recorder.py
 ```
 
-### Custom duration:
+Custom duration:
 ```bash
 uv run audio_recorder.py -d 30  # Record for 30 seconds
 ```
 
-### Specify output filename:
+Specify output filename:
 ```bash
 uv run audio_recorder.py -o my_recording.wav
 ```
 
-### Mono recording:
+Mono recording:
 ```bash
 uv run audio_recorder.py -c 1  # 1 channel (mono)
 ```
 
-### Custom sample rate:
+Custom sample rate:
 ```bash
 uv run audio_recorder.py -r 48000  # 48kHz sample rate
 ```
 
-### List available audio devices:
+List available audio devices:
 ```bash
 uv run audio_recorder.py --list-devices
 ```
 
-### Combined options:
+Combined options:
 ```bash
 uv run audio_recorder.py -d 60 -o interview.wav -r 44100 -c 2
 ```
 
-### Transcribing Audio
+#### Transcribing Audio Only
 
 **Note:** Transcription requires an NVIDIA GPU with CUDA. The script will automatically use GPU acceleration for faster processing.
 
-#### Transcribe a single file:
+Transcribe a single file:
 ```bash
 uv run transcribe.py recording.wav
 ```
 
-#### Transcribe all WAV files in current directory:
+Transcribe all WAV files in current directory:
 ```bash
 uv run transcribe.py --all
 ```
 
-#### Use different Whisper model sizes:
+Use different Whisper model sizes:
 ```bash
 # Faster, less accurate
 uv run transcribe.py -m tiny recording.wav
@@ -106,19 +139,36 @@ uv run transcribe.py -m small recording.wav
 uv run transcribe.py -m medium recording.wav
 ```
 
-#### Custom output filename:
+Custom output filename:
 ```bash
 uv run transcribe.py -o transcript.txt recording.wav
 ```
 
-#### Force overwrite existing transcriptions:
+Force overwrite existing transcriptions:
 ```bash
 uv run transcribe.py --force --all
 ```
 
 ## Options
 
-### Audio Recorder
+### Integrated CLI (record.py)
+
+**Recording Options:**
+- `-d, --duration`: Recording duration in seconds (default: 10)
+- `-o, --output`: Output filename (default: recording_TIMESTAMP.wav)
+- `-r, --rate`: Sample rate in Hz (default: 44100)
+- `-c, --channels`: Number of channels - 1=mono, 2=stereo (default: 2)
+
+**Transcription Options:**
+- `-m, --model`: Whisper model size - tiny, base, small, medium, large (default: small)
+- `--delete-audio`: Delete audio file after successful transcription
+- `--no-transcribe`: Record only, skip transcription
+
+**Special Modes:**
+- `--transcribe-only FILE`: Transcribe existing file without recording
+- `--list-devices`: List available audio input devices
+
+### Audio Recorder (audio_recorder.py)
 
 - `-d, --duration`: Recording duration in seconds (default: 10)
 - `-o, --output`: Output filename (default: recording_TIMESTAMP.wav)
@@ -126,7 +176,7 @@ uv run transcribe.py --force --all
 - `-c, --channels`: Number of channels - 1=mono, 2=stereo (default: 2)
 - `--list-devices`: List available audio input devices
 
-### Transcriber
+### Transcriber (transcribe.py)
 
 - `audio_file`: Audio file to transcribe (positional argument)
 - `-a, --all`: Transcribe all WAV files in directory
@@ -161,15 +211,41 @@ All models use GPU acceleration (CUDA) for faster transcription.
 - Keyboard interrupt support (Ctrl+C)
 - Smart skipping of already-transcribed files
 
-## Example Workflow
+## Example Workflows
 
+### Quick voice note with transcription:
 ```bash
-# 1. Record a 30-second audio clip
-uv run audio_recorder.py -d 30 -o meeting.wav
+# Record 10 seconds and transcribe (keeps both files)
+uv run record.py
 
-# 2. Transcribe it to text
-uv run transcribe.py meeting.wav
+# View the transcription
+cat recording_*.txt
+```
 
-# 3. View the transcription
-cat meeting.txt
+### Interview recording (save space):
+```bash
+# Record 30 minutes, transcribe, delete audio to save space
+uv run record.py -d 1800 --delete-audio -o interview.wav
+
+# Only the text file remains
+cat interview.txt
+```
+
+### Batch transcription:
+```bash
+# Record multiple clips separately
+uv run audio_recorder.py -d 30 -o clip1.wav
+uv run audio_recorder.py -d 30 -o clip2.wav
+
+# Transcribe all at once
+uv run transcribe.py --all
+```
+
+### Re-transcribe with different model:
+```bash
+# First transcription with tiny model (fast)
+uv run record.py -d 60 -m tiny -o meeting.wav
+
+# Re-transcribe with better model for accuracy
+uv run record.py --transcribe-only meeting.wav -m medium
 ```
