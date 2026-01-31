@@ -74,30 +74,26 @@ A Python CLI tool to record audio from your microphone and transcribe it to text
 
 #### Quick Start (Secure Mode - Recommended)
 
-**Step 1: Add yourself to input group (one-time setup)**
-```bash
-sudo usermod -aG input $USER
-# Log out and log back in for this to take effect
-```
+**No special permissions needed!** Uses signal-based approach instead of keyboard monitoring.
 
-**Step 2: Test the tool**
+**Step 1: Test the tool**
 ```bash
-# Press Alt+R again to stop (RECOMMENDED - no time limit)
-uv run voice_to_text.py --record-once
+# Test with toggle script (RECOMMENDED - no input group needed)
+./voice_to_text_toggle.sh
 
-# Or use fixed 5 second duration
+# Or test with fixed duration (also no input group)
 uv run voice_to_text.py --record-once -d 5
 ```
 
-**Step 3: Set up GNOME keyboard shortcut**
+**Step 2: Set up GNOME keyboard shortcut**
 1. Open **Settings → Keyboard → Keyboard Shortcuts**
 2. Scroll down and click **"+"** to add custom shortcut
 3. **Name**: `Voice to Text`
 4. **Command**: 
    ```
-   /usr/bin/bash -c "cd /home/YOUR_USERNAME/vibe_projects/audio_recorder && /home/YOUR_USERNAME/.local/bin/uv run voice_to_text.py --record-once"
+   /home/YOUR_USERNAME/vibe_projects/audio_recorder/voice_to_text_toggle.sh
    ```
-   (Replace `YOUR_USERNAME` with your actual username)
+   (Replace `YOUR_USERNAME` with your actual username - use full absolute path)
 5. Click **Set Shortcut** and press `Alt+R`
 6. Done! Now `Alt+R` works system-wide
 
@@ -108,32 +104,37 @@ uv run voice_to_text.py --record-once -d 5
 4. **Press Alt+R again** - Recording stops (1 beep), transcription begins
 5. **Text appears** - Inserted at your cursor position!
 
+**Technical details:** The toggle script uses PID files and SIGUSR1 signals - no keyboard monitoring required!
+
 **Note:** Audio feedback uses programmatic beeps (880Hz/660Hz tones) that work in all scenarios including desktop shortcuts.
 
-#### Alternative: Hotkey Mode (Requires Input Group)
+#### Alternative Methods
 
-If you prefer continuous monitoring and have added yourself to the input group:
-
+**Method 1: Keyboard Monitoring (Requires Input Group)**
 ```bash
-# Start the voice-to-text service
+# Requires: sudo usermod -aG input $USER (then log out/in)
+uv run voice_to_text.py --record-once
+```
+- Press Alt+R to start, Alt+R to stop
+- Requires input group membership
+
+**Method 2: Hotkey Mode - Press and Hold (Requires Input Group)**
+```bash
+# Start continuous monitoring service
 uv run voice_to_text.py
 ```
+- Hold Alt+R to record, release to stop
+- Requires input group membership
 
-Once running:
-1. **Press and hold Alt+R** - Recording starts (2 audio beeps)
-2. **Speak clearly** - Your voice is being recorded
-3. **Release Alt+R** - Recording stops (1 beep), transcription begins
-4. **Text appears** - Inserted at your cursor position
-
-**Security Warning**: This mode requires `input` group membership which grants access to all keyboard/mouse events.
+**Security Warning**: Methods requiring input group grant access to all keyboard/mouse events. Use toggle script for better security.
 
 #### Features
 
 - 🌍 **System-wide**: Works in browser, text editor, terminal, any application
-- 🔒 **Secure Option**: `--record-once` mode needs no special permissions
-- 🔔 **Audio feedback**: Terminal beep when recording starts/finishes (bypasses PipeWire)
+- 🔒 **Secure**: Toggle script needs no special permissions (RECOMMENDED)
+- 🔔 **Audio feedback**: Programmatic beeps (880Hz/660Hz) work everywhere
 - ⌨️ **Direct insertion**: Uses xdotool to type text at cursor
-- ⚡ **Fast**: Pre-loaded model, transcription starts immediately
+- ⚡ **Fast**: Pre-loaded model, transcription starts immediately (~0.5s overhead)
 - 🔒 **Private**: Fully offline, no internet required
 - 🎯 **Accurate**: Uses OpenAI Whisper medium model by default
 - 🌏 **Multilingual**: Auto-detects Chinese, English, and many other languages
