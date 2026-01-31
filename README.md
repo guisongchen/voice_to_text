@@ -4,8 +4,11 @@ A Python CLI tool to record audio from your microphone and transcribe it to text
 
 **🚀 Main Tool: `record.py`** - Records audio and transcribes in one command (see [Quick Start](#-quick-start-with-recordpy-recommended))
 
+**⌨️ NEW: `voice_to_text.py`** - System-wide voice input with Alt+R hotkey! (see [Voice-to-Text Input Tool](#%EF%B8%8F-voice-to-text-input-tool))
+
 ## Features
 
+- ⌨️ **System-wide voice input**: Press Alt+R to record and insert text anywhere
 - 🎤 **One-command workflow**: Record and transcribe with `record.py`
 - 📝 Transcribe audio files to text using Whisper AI
 - 🚀 GPU-accelerated transcription (CUDA required)
@@ -20,6 +23,7 @@ A Python CLI tool to record audio from your microphone and transcribe it to text
 - Python 3.10+
 - NVIDIA GPU with CUDA support (for transcription)
 - System audio libraries (PortAudio)
+- **For voice-to-text**: Ubuntu 24.04+ with Wayland, ydotool, input group permissions
 
 ## Installation
 
@@ -35,17 +39,116 @@ A Python CLI tool to record audio from your microphone and transcribe it to text
    sudo dnf install portaudio-devel
    ```
 
-2. Ensure NVIDIA GPU drivers and CUDA are installed:
+2. **For voice-to-text tool**, install ydotool (Wayland text insertion):
+   ```bash
+   sudo apt install ydotool
+   ```
+
+3. **For voice-to-text tool**, add your user to the input group:
+   ```bash
+   sudo usermod -aG input $USER
+   ```
+   **Important**: Log out and log back in for group changes to take effect!
+
+4. Ensure NVIDIA GPU drivers and CUDA are installed:
    ```bash
    nvidia-smi  # Should show your GPU
    ```
 
-3. Install Python dependencies with uv:
+5. Install Python dependencies with uv:
    ```bash
    uv sync
    ```
 
 ## Usage
+
+### ⌨️ Voice-to-Text Input Tool
+
+**NEW!** System-wide voice input with hotkey support. Press and hold `Alt+R` to record speech, release to transcribe and automatically insert text at your cursor position - works in any application!
+
+#### Quick Start
+
+```bash
+# Start the voice-to-text service
+uv run voice_to_text.py
+```
+
+Once running:
+1. **Press and hold Alt+R** - Recording starts immediately
+2. **Speak clearly** - Your voice is being recorded
+3. **Release Alt+R** - Recording stops, transcription begins
+4. **Text appears** - Transcribed text is automatically inserted at cursor
+
+#### Features
+
+- 🌍 **System-wide**: Works in browser, text editor, terminal, any application
+- ⚡ **Fast**: Pre-loaded model, transcription starts immediately after release
+- 🔒 **Private**: Fully offline, no internet required
+- 🎯 **Accurate**: Uses OpenAI Whisper medium model by default
+- 🌏 **Multilingual**: Auto-detects Chinese, English, and many other languages
+
+#### Voice-to-Text Options
+
+**Use a different Whisper model:**
+```bash
+# Faster transcription (less accurate)
+uv run voice_to_text.py --model small
+
+# Best accuracy (slower)
+uv run voice_to_text.py --model large
+```
+
+**Keep audio files for debugging:**
+```bash
+uv run voice_to_text.py --keep-audio
+```
+
+**List available keyboard devices:**
+```bash
+uv run voice_to_text.py --list-keyboards
+```
+
+**Set minimum recording duration:**
+```bash
+uv run voice_to_text.py --min-duration 1.0  # Ignore recordings < 1 second
+```
+
+#### Troubleshooting
+
+**"Permission denied" error:**
+```bash
+# Add your user to the input group
+sudo usermod -aG input $USER
+# Then log out and log back in
+```
+
+**"ydotool not found" error:**
+```bash
+# Install ydotool
+sudo apt install ydotool
+
+# If text insertion still doesn't work, start the daemon
+systemctl --user start ydotoold
+systemctl --user enable ydotoold  # Auto-start on boot
+```
+
+**Alt+R not detected:**
+- Check available keyboards with `--list-keyboards`
+- Make sure you're in the input group
+- Try restarting after adding to input group
+
+**Text not inserting:**
+- Verify ydotool works: `ydotool type "test"`
+- If error, start ydotoold: `systemctl --user start ydotoold`
+- Check that the target application accepts keyboard input
+
+**Transcription quality issues:**
+- Speak clearly and at normal pace
+- Reduce background noise
+- Use a better microphone
+- Try a larger model: `--model medium` or `--model large`
+
+---
 
 ### 🚀 Quick Start with `record.py` (Recommended)
 
