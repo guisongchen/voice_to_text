@@ -11,3 +11,6 @@ wheels/
 
 # Audio recordings
 *.wav
+
+# Transcriptions
+*.txt
