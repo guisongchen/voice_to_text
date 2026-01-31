@@ -6,6 +6,7 @@ from ..core.audio_service import AudioService
 from ..core.audio_feedback import AudioFeedback
 from ..core.text_inserter import TextInserter
 from ..modes.pid_file_mode import PidFileMode
+from ..modes.record_pid_file_mode import RecordPidFileMode
 
 from ..transcribe import AudioTranscriber
 
@@ -67,8 +68,24 @@ class DependencyContainer:
         Returns:
             BaseMode instance (always PidFileMode)
         """
-        # Always use PID file mode
+        # Always use PID file mode for voice-to-text
         return PidFileMode(
+            self.audio_service,
+            self.text_inserter,
+            self.audio_feedback,
+            self.transcriber,
+            self.config
+        )
+
+    def create_record_mode(self):
+        """
+        Create record mode for saving transcription to file.
+
+        Returns:
+            BaseMode instance (RecordPidFileMode)
+        """
+        # Use RecordPidFileMode for record command
+        return RecordPidFileMode(
             self.audio_service,
             self.text_inserter,
             self.audio_feedback,

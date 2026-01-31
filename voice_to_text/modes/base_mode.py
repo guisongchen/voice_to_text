@@ -159,17 +159,77 @@ class BaseMode(ABC):
         finally:
             self._cleanup_audio_file(audio_file)
 
+    def _save_transcription_to_file(self, audio_file):
+        """Transcribe the recorded audio and save to text file."""
+        if not audio_file or not Path(audio_file).exists():
+            print("  ✗ Error: Audio file not found")
+            return
+
+        # Check if transcription is disabled
+        if self.config.get('no_transcribe', False):
+            print("  ⏭️  Transcription skipped (--no-transcribe)")
+            return
+
+        print("🔄 Transcribing...")
+
+        try:
+            # Use AudioTranscriber.transcribe_file() which automatically creates .txt file
+            text_file = self.transcriber.transcribe_file(audio_file, force=True)
+
+            if text_file and Path(text_file).exists():
+                # Show preview of transcription
+                text_content = Path(text_file).read_text(encoding='utf-8').strip()
+                if text_content:
+                    preview = text_content[:80] + "..." if len(text_content) > 80 else text_content
+                    print(f"📝 Transcribed: \"{preview}\"")
+                    print(f"✓ Transcription saved to: {text_file}")
+                else:
+                    print("  ⚠ No speech detected")
+            else:
+                print("  ✗ Transcription failed: No output file generated")
+
+        except Exception as e:
+            print(f"  ✗ Transcription error: {e}")
+        finally:
+            self._cleanup_audio_file(audio_file)
+
     def _cleanup_audio_file(self, audio_file):
         """Clean up temporary audio file."""
-        if audio_file and not self.config.get('keep_audio', False):
+        # Check if we should delete audio (inverse of keep_audio)
+        delete_audio = self.config.get('delete_audio', False)
+        keep_audio = self.config.get('keep_audio', False)
+
+        # Delete audio if delete_audio is True OR keep_audio is False (default behavior)
+        should_delete = delete_audio or not keep_audio
+
+        if audio_file and should_delete:
             try:
                 Path(audio_file).unlink(missing_ok=True)
             except Exception:
                 pass
-        elif audio_file and self.config.get('keep_audio', False):
+        elif audio_file and keep_audio and not delete_audio:
             print(f"  Audio saved: {audio_file}")
 
         self.current_audio_file = None
+
+    def _rename_audio_file(self, temp_audio_file):
+        """Rename temporary audio file to user-specified output path."""
+        output_audio_path = self.config.get('output_audio_path')
+        if not output_audio_path:
+            return temp_audio_file
+
+        try:
+            target_path = Path(output_audio_path)
+            # Ensure target directory exists
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Rename the file
+            Path(temp_audio_file).rename(target_path)
+            print(f"✓ Audio file saved to: {target_path}")
+            return str(target_path)
+        except Exception as e:
+            print(f"  ✗ Failed to rename audio file: {e}")
+            return temp_audio_file
 
     def cleanup(self):
         """Clean up resources."""

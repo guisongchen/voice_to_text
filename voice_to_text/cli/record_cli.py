@@ -1,6 +1,6 @@
 """
 Unified CLI tool for recording audio and automatically transcribing it.
-Updated to use new AudioService instead of AudioRecorder.
+Updated to use RecordService with Alt+R stopping.
 """
 
 import argparse
@@ -8,9 +8,8 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
-from ..core.audio_service import AudioService
+from ..services.record_service import RecordService
 from ..transcribe import AudioTranscriber
-from ..core.config import SAMPLE_RATE, CHANNELS
 
 
 def main():
@@ -19,7 +18,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Record 10 seconds and transcribe (default)
+  # Record with Alt+R stopping and transcribe (default)
   record
 
   # Record with custom filename
@@ -31,12 +30,16 @@ Examples:
   # Delete audio file after transcription
   record --delete-audio
 
+  # Record only, skip transcription
+  record --no-transcribe
+
   # Transcribe existing file without recording
   record --transcribe-only recording.wav
 
 
 Recording Options:
-  -o, --output       Output filename (default: recording_TIMESTAMP.wav)
+  -o, --output       Output audio filename (default: temporary file)
+                     Press Alt+R (toggle script) to stop recording
 
 Transcription Options:
   -m, --model        Whisper model: tiny/base/small/medium/large (default: small)
@@ -45,6 +48,8 @@ Transcription Options:
 
 Other Options:
   --transcribe-only  Transcribe existing file without recording
+
+Note: Uses same toggle script as voice-to-text (Alt+R desktop shortcut)
         """
     )
 
@@ -84,9 +89,6 @@ Other Options:
 
     args = parser.parse_args()
 
-    # Hardcode duration to 10 seconds
-    args.duration = 10
-
 
     # Transcribe-only mode
     if args.transcribe_only:
@@ -106,54 +108,17 @@ Other Options:
             sys.exit(1)
         return
 
-    # Record + Transcribe mode (default)
+    # Record + Transcribe mode (default) using RecordService
     try:
-        # Step 1: Record audio
-        print("=" * 60)
-        print("STEP 1: Recording Audio")
-        print("=" * 60)
-
-        recorder = AudioService(
-            sample_rate=SAMPLE_RATE,
-            channels=CHANNELS
+        # Create and run RecordService
+        service = RecordService(
+            output=args.output,
+            model_size=args.model,
+            delete_audio=args.delete_audio,
+            no_transcribe=args.no_transcribe
         )
 
-        try:
-            audio_file = recorder.record(args.duration, args.output)
-        finally:
-            recorder.cleanup()
-
-        # Step 2: Transcribe (unless --no-transcribe)
-        if args.no_transcribe:
-            print(f"\n✓ Recording complete!")
-            print(f"  Audio file: {audio_file}")
-            return
-
-        print("\n" + "=" * 60)
-        print("STEP 2: Transcribing Audio")
-        print("=" * 60)
-
-        transcriber = AudioTranscriber(model_size=args.model)
-        text_file = transcriber.transcribe_file(audio_file, force=True)
-
-        # Display results
-        print("\n" + "=" * 60)
-        print("✓ Complete!")
-        print("=" * 60)
-        print(f"Audio file: {audio_file}")
-        print(f"Text file:  {text_file}")
-
-        # Show transcription preview
-        text_content = Path(text_file).read_text(encoding='utf-8')
-        preview = text_content[:200] + "..." if len(text_content) > 200 else text_content
-        print(f"\nTranscription preview:")
-        print(f"  {preview}")
-
-        # Delete audio if requested
-        if args.delete_audio:
-            Path(audio_file).unlink()
-            print(f"\n✓ Audio file deleted: {audio_file}")
-            print(f"  Text file kept: {text_file}")
+        return service.run()
 
     except KeyboardInterrupt:
         print("\n\nOperation cancelled by user")

@@ -180,7 +180,7 @@ xdotool type "test"
 
 The easiest way to use this tool is with **`record`** - an integrated CLI that records and transcribes in one command:
 
-**Basic usage (10 seconds):**
+**Basic usage (uses Alt+R to stop):**
 ```bash
 uv run record
 ```
@@ -197,7 +197,12 @@ uv run record --delete-audio
 
 **Record only, skip transcription:**
 ```bash
-uv run record --no-transcribe -d 60
+uv run record --no-transcribe
+```
+
+**Save audio to custom filename:**
+```bash
+uv run record -o my_recording.wav
 ```
 
 **Transcribe existing file without recording:**
@@ -212,17 +217,17 @@ If you need more control, you can use the tools separately:
 
 #### Recording Audio Only
 
-Basic recording (10 seconds, default settings):
+Basic recording (uses Alt+R to stop):
 ```bash
 uv run record
 ```
-
-Record for 10 seconds (default):
 
 Specify output filename:
 ```bash
 uv run record -o my_recording.wav
 ```
+
+**Note:** The `record` command now uses the same Alt+R toggle mechanism as `voice-to-text`. Press Alt+R (desktop shortcut) to stop recording.
 
 
 
@@ -269,7 +274,8 @@ uv run transcribe.py --force --all
 ### Integrated CLI (record)
 
 **Recording Options:**
-- `-o, --output`: Output filename (default: recording_TIMESTAMP.wav)
+- `-o, --output`: Output audio filename (default: temporary file)
+  - Press Alt+R (toggle script) to stop recording
 
 **Transcription Options:**
 - `-m, --model`: Whisper model size - tiny, base, small, medium, large (default: small)
@@ -279,9 +285,7 @@ uv run transcribe.py --force --all
 **Special Modes:**
 - `--transcribe-only FILE`: Transcribe existing file without recording
 
-### Integrated CLI (record)
-
-- `-o, --output`: Output filename (default: recording_TIMESTAMP.wav)
+**Note:** Uses same toggle script as voice-to-text (Alt+R desktop shortcut)
 
 ### Transcriber (transcribe.py)
 
@@ -322,36 +326,32 @@ All models use GPU acceleration (CUDA) for faster transcription.
 
 ### Quick voice note with transcription:
 ```bash
-# Record 10 seconds and transcribe (keeps both files)
+# Record with Alt+R stopping and transcribe (keeps both files)
 uv run record
 
 # View the transcription
-cat recording_*.txt
+cat *.txt
 ```
 
 ### Interview recording (save space):
 ```bash
-# Record 30 minutes, transcribe, delete audio to save space
-uv run record -d 1800 --delete-audio -o interview.wav
+# Record with Alt+R stopping, transcribe, delete audio to save space
+uv run record --delete-audio -o interview.wav
 
 # Only the text file remains
 cat interview.txt
 ```
 
-### Batch transcription:
+### Record only (no transcription):
 ```bash
-# Record multiple clips separately
-uv run record -d 30 -o clip1.wav
-uv run record -d 30 -o clip2.wav
-
-# Transcribe all at once
-uv run transcribe.py --all
+# Record with Alt+R stopping, save audio only
+uv run record --no-transcribe -o audio_only.wav
 ```
 
 ### Re-transcribe with different model:
 ```bash
 # First transcription with tiny model (fast)
-uv run record -d 60 -m tiny -o meeting.wav
+uv run record --transcribe-only meeting.wav -m tiny
 
 # Re-transcribe with better model for accuracy
 uv run record --transcribe-only meeting.wav -m medium
