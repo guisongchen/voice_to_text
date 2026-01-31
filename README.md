@@ -94,10 +94,12 @@ uv run voice_to_text.py --record-once -d 5
 
 **How to use:**
 1. **Focus any application** (browser, editor, terminal, etc.)
-2. **Press Alt+R** - Recording starts (terminal beep), tool counts down 5 seconds
+2. **Press Alt+R** - Recording starts (2 audio beeps), tool counts down 5 seconds
 3. **Speak clearly** - Your speech is being recorded
-4. **Wait** - Transcription happens automatically (beep when done)
+4. **Wait** - Transcription happens automatically (1 beep when done)
 5. **Text appears** - Inserted at your cursor position!
+
+**Note:** Audio feedback uses programmatic beeps (880Hz/660Hz tones) that work in all scenarios including desktop shortcuts.
 
 #### Alternative: Hotkey Mode (Requires Input Group)
 
@@ -109,9 +111,9 @@ uv run voice_to_text.py
 ```
 
 Once running:
-1. **Press and hold Alt+R** - Recording starts (terminal beep)
+1. **Press and hold Alt+R** - Recording starts (2 audio beeps)
 2. **Speak clearly** - Your voice is being recorded
-3. **Release Alt+R** - Recording stops (terminal beep), transcription begins
+3. **Release Alt+R** - Recording stops (1 beep), transcription begins
 4. **Text appears** - Inserted at your cursor position
 
 **Security Warning**: This mode requires `input` group membership which grants access to all keyboard/mouse events.
@@ -219,19 +221,16 @@ xdotool type "test"
 - Use a better microphone
 - Try a larger model: `--model medium` or `--model large`
 
-**Audio feedback beeps too quiet:**
-- Tool uses 4 terminal beeps for start, 2 for finish
-- Also shows visual indicators: 🔴 ● REC (colored, bold text)
-- To make beeps louder:
-  - GNOME Terminal: Preferences → Sound → Terminal bell
-  - System Settings → Sound → Sound Effects volume
-- Alternative: Watch for visual indicators instead
-- To disable beeps: `--no-beeps`
+**Audio beeps not audible:**
+- Tool generates programmatic audio beeps (880Hz start, 660Hz finish)
+- Check system volume settings
+- Beeps work in all scenarios (terminal, desktop shortcuts)
+- If beeps still too quiet, you can watch the console for status messages
 
-**Audio feedback beeps causing noise:**
-- The tool uses terminal bell (system beep) which bypasses PipeWire
-- If you still hear noise, use: `--no-beeps` (visual feedback remains)
-- Some terminals (GNOME Terminal, Konsole) may flash instead of beep
+**Audio feedback beeps causing noise/buzz:**
+- The tool keeps output stream active during recording to prevent PipeWire noise
+- If noise persists, may indicate audio driver issue
+- Try `--keep-audio` to save recording and inspect with audio player
 
 ---
 
