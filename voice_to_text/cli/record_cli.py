@@ -1,14 +1,15 @@
-#!/usr/bin/env python3
 """
 Unified CLI tool for recording audio and automatically transcribing it.
-Combines microphone recording with GPU-accelerated Whisper transcription.
+Updated to use new AudioService instead of AudioRecorder.
 """
+
 import argparse
 import sys
 from pathlib import Path
 from datetime import datetime
-from audio_recorder import AudioRecorder
-from transcribe import AudioTranscriber
+
+from ..core.audio_service import AudioService
+from ..transcribe import AudioTranscriber
 
 
 def main():
@@ -18,25 +19,25 @@ def main():
         epilog="""
 Examples:
   # Record 10 seconds and transcribe (default)
-  uv run record.py
+  record
 
   # Record for 30 seconds
-  uv run record.py -d 30
+  record -d 30
 
   # Record with custom filename
-  uv run record.py -o interview.wav
+  record -o interview.wav
 
   # Use smaller model for faster transcription
-  uv run record.py -m tiny -d 5
+  record -m tiny -d 5
 
   # Delete audio file after transcription
-  uv run record.py --delete-audio
+  record --delete-audio
 
   # Transcribe existing file without recording
-  uv run record.py --transcribe-only recording.wav
+  record --transcribe-only recording.wav
 
   # List available audio devices
-  uv run record.py --list-devices
+  record --list-devices
 
 Recording Options:
   -d, --duration     Recording duration in seconds (default: 10)
@@ -54,7 +55,7 @@ Other Options:
   --list-devices     List available audio input devices
         """
     )
-    
+
     # Recording options
     parser.add_argument(
         '-d', '--duration',
@@ -80,7 +81,7 @@ Other Options:
         choices=[1, 2],
         help='Number of channels: 1=mono, 2=stereo (default: 2)'
     )
-    
+
     # Transcription options
     parser.add_argument(
         '-m', '--model',
@@ -99,7 +100,7 @@ Other Options:
         action='store_true',
         help='Record only, skip transcription'
     )
-    
+
     # Special modes
     parser.add_argument(
         '--transcribe-only',
@@ -112,25 +113,28 @@ Other Options:
         action='store_true',
         help='List available audio input devices and exit'
     )
-    
+
     args = parser.parse_args()
-    
+
     # List devices mode
     if args.list_devices:
-        recorder = AudioRecorder()
+        recorder = AudioService(
+            sample_rate=args.rate,
+            channels=args.channels
+        )
         try:
             recorder.list_devices()
         finally:
-            recorder.close()
+            recorder.cleanup()
         return
-    
+
     # Transcribe-only mode
     if args.transcribe_only:
         audio_file = Path(args.transcribe_only)
         if not audio_file.exists():
             print(f"Error: File not found: {audio_file}", file=sys.stderr)
             sys.exit(1)
-        
+
         print(f"Transcribing: {audio_file}")
         transcriber = AudioTranscriber(model_size=args.model)
         try:
@@ -141,56 +145,56 @@ Other Options:
             print(f"\n✗ Transcription failed: {e}", file=sys.stderr)
             sys.exit(1)
         return
-    
+
     # Record + Transcribe mode (default)
     try:
         # Step 1: Record audio
         print("=" * 60)
         print("STEP 1: Recording Audio")
         print("=" * 60)
-        
-        recorder = AudioRecorder(
+
+        recorder = AudioService(
             sample_rate=args.rate,
             channels=args.channels
         )
-        
+
         try:
             audio_file = recorder.record(args.duration, args.output)
         finally:
-            recorder.close()
-        
+            recorder.cleanup()
+
         # Step 2: Transcribe (unless --no-transcribe)
         if args.no_transcribe:
             print(f"\n✓ Recording complete!")
             print(f"  Audio file: {audio_file}")
             return
-        
+
         print("\n" + "=" * 60)
         print("STEP 2: Transcribing Audio")
         print("=" * 60)
-        
+
         transcriber = AudioTranscriber(model_size=args.model)
         text_file = transcriber.transcribe_file(audio_file, force=True)
-        
+
         # Display results
         print("\n" + "=" * 60)
         print("✓ Complete!")
         print("=" * 60)
         print(f"Audio file: {audio_file}")
         print(f"Text file:  {text_file}")
-        
+
         # Show transcription preview
         text_content = Path(text_file).read_text(encoding='utf-8')
         preview = text_content[:200] + "..." if len(text_content) > 200 else text_content
         print(f"\nTranscription preview:")
         print(f"  {preview}")
-        
+
         # Delete audio if requested
         if args.delete_audio:
             Path(audio_file).unlink()
             print(f"\n✓ Audio file deleted: {audio_file}")
             print(f"  Text file kept: {text_file}")
-        
+
     except KeyboardInterrupt:
         print("\n\nOperation cancelled by user")
         sys.exit(1)

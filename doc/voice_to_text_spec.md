@@ -6,20 +6,20 @@
 |-----------|-------|
 | Project Name | Voice-to-Text Input Tool |
 | Target Platform | Ubuntu Linux |
-| Core Function | System-wide voice input triggered by hotkey, with automatic text insertion at cursor position |
+| Core Function | System-wide voice input triggered by desktop shortcut or fixed duration, with automatic text insertion at cursor position |
 
 ---
 
 ## 2. Functional Requirements
 
-### FR-01: Global Hotkey Recording Control
+### FR-01: Recording Control via Desktop Shortcut or Fixed Duration
 
 | Attribute | Description |
 |-----------|-------------|
 | ID | FR-01 |
-| Hotkey | `Alt + R` |
-| Key Press | Start recording |
-| Key Release | Stop recording |
+| Modes | 1. Desktop shortcut toggle (PID file + SIGUSR1) 2. Fixed duration recording |
+| Start Trigger | Command execution (desktop shortcut) or timer |
+| Stop Trigger | SIGUSR1 signal (toggle) or timer expiration |
 | Scope | System-wide (works in any application) |
 
 ### FR-02: Speech-to-Text Conversion
@@ -45,6 +45,8 @@
 ---
 
 ## 3. User Flow
+
+**Note**: Original hotkey mode has been removed. Current implementation uses desktop shortcut toggle or fixed duration recording.
 
 ```
 ┌─────────────────────────────────────────────┐
@@ -85,7 +87,7 @@
 | Operating System | Ubuntu 24.04 |
 | Desktop Environment | X11 or Wayland with XWayland |
 | Text Insertion | `xdotool` |
-| Hotkey Listener | `evdev` (optional, for continuous mode) or desktop shortcuts |
+| Hotkey Listener | Desktop shortcuts (no `evdev` required) |
 
 ### 4.2 Whisper Model
 
@@ -100,8 +102,8 @@
 
 | ID | Criterion |
 |----|-----------|
-| AC-01 | Pressing `Alt+R` starts audio recording within 200ms |
-| AC-02 | Releasing `Alt+R` stops recording immediately |
+| AC-01 | Recording starts within 200ms of command execution |
+| AC-02 | Recording stops after specified duration or SIGUSR1 signal |
 | AC-03 | Speech is transcribed to text without network connection |
 | AC-04 | Transcribed text is inserted at the current cursor position |
 | AC-05 | Works across different applications (browser, text editor, terminal) |

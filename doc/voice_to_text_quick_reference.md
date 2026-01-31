@@ -14,7 +14,7 @@
 2. **Test the command**:
    ```bash
    cd /home/YOUR_USERNAME/vibe_projects/audio_recorder
-   uv run voice_to_text.py --record-once -d 5
+   uv run voice-to-text --record-once -d 5
    # Speak after 2 seconds, text will be inserted!
    ```
 
@@ -24,7 +24,7 @@
    - **Name**: Voice to Text
    - **Command**: 
      ```
-     /usr/bin/bash -c "cd /home/YOUR_USERNAME/vibe_projects/audio_recorder && /home/YOUR_USERNAME/.local/bin/uv run voice_to_text.py --record-once -d 5"
+     /usr/bin/bash -c "cd /home/YOUR_USERNAME/vibe_projects/audio_recorder && /home/YOUR_USERNAME/.local/bin/uv run voice-to-text --record-once -d 5"
      ```
    - **Shortcut**: Press `Alt+R`
    - Done!
@@ -52,128 +52,42 @@
 
 **No special permissions needed!** ✅ More secure, easier to set up.
 
-### For Hotkey Mode (Less Secure)
-
-Only follow these if you need continuous monitoring mode:
-
-1. **Install System Dependencies**
-```bash
-# Install xdotool
-sudo apt install xdotool
-
-# Install PortAudio for microphone recording
-sudo apt-get install portaudio19-dev
-```
-
-### 2. Configure Permissions (Hotkey Mode Only)
-```bash
-# Add your user to the input group (required for keyboard access)
-sudo usermod -aG input $USER
-
-# IMPORTANT: Log out and log back in for this to take effect!
-```
-
-### 3. Install Python Dependencies
-```bash
-cd /path/to/audio_recorder
-uv sync
-```
-
-### 4. Verify Setup (Hotkey Mode)
-```bash
-# Check if you can list keyboard devices
-uv run voice_to_text.py --list-keyboards
-
-# If you see keyboards listed, you're ready!
-# If you get permission errors, make sure you logged out/in after step 2
-```
 
 ## Usage
 
 ### Secure Mode (Recommended)
 ```bash
 # Single recording (5 seconds)
-uv run voice_to_text.py --record-once -d 5
+uv run voice-to-text --record-once -d 5
 
 # After 2 seconds: speak
 # Text automatically inserted at cursor!
 ```
 
-### Hotkey Mode
-```bash
-# Start the voice-to-text service
-uv run voice_to_text.py
-
-# Once running:
-# 1. Press and hold Alt+R
-# 2. Speak clearly
-# 3. Release Alt+R
-# 4. Text appears at cursor!
-```
 
 ### Common Options
 ```bash
 # Use faster model (less accurate, but quicker)
-uv run voice_to_text.py --model small
+uv run voice-to-text --model small
 
 # Use tiny model (fastest)
-uv run voice_to_text.py --model tiny
+uv run voice-to-text --model tiny
 
 # Use large model (best accuracy, slowest)
-uv run voice_to_text.py --model large
+uv run voice-to-text --model large
 
 # Keep audio files for debugging
-uv run voice_to_text.py --keep-audio
+uv run voice-to-text --keep-audio
 
 # Set minimum recording duration (ignore very short recordings)
-uv run voice_to_text.py --min-duration 1.0
+uv run voice-to-text --min-duration 1.0
 ```
 
 ## Troubleshooting
 
-### Issue: "Permission denied" when accessing keyboard
-**Solution:**
-```bash
-# Make sure you're in the input group
-groups | grep input
 
-# If not listed, add yourself
-sudo usermod -aG input $USER
 
-# Then log out and log back in (REQUIRED!)
-```
 
-### Issue: "ydotool not found"
-**Solution:**
-```bash
-# Install ydotool
-sudo apt install ydotool
-
-# Verify it's installed
-which ydotool
-```
-
-### Issue: Text not inserting even though ydotool is installed
-**Solution:**
-```bash
-# Start the ydotool daemon
-systemctl --user start ydotoold
-
-# Check status
-systemctl --user status ydotoold
-
-# If it fails, try running manually
-ydotoold &
-
-# Test if it works now
-ydotool type "test"
-```
-
-### Issue: "No keyboard devices found"
-**Possible causes:**
-1. Not in input group (see first troubleshooting item)
-2. Need to log out/in after adding to group
-3. Running in a virtual machine or container without proper device access
 
 ### Issue: Whisper model fails to load
 **Solutions:**
@@ -217,39 +131,38 @@ ydotool type "test"
 
 **For quick notes and casual use:**
 ```bash
-uv run voice_to_text.py --model small
+uv run voice-to-text --model small
 ```
 
 **For important documents (default):**
 ```bash
-uv run voice_to_text.py --model medium
+uv run voice-to-text --model medium
 ```
 
 **For professional transcription:**
 ```bash
-uv run voice_to_text.py --model large
+uv run voice-to-text --model large
 ```
 
 **For debugging issues:**
 ```bash
-uv run voice_to_text.py --keep-audio --min-duration 0.1
+uv run voice-to-text --keep-audio --min-duration 0.1
 ```
 
 ## Technical Details
 
 ### How It Works
 
-1. **Hotkey Detection**: Uses `evdev` to monitor keyboard events for Alt+R
-2. **Audio Recording**: PyAudio records from default microphone
-3. **Transcription**: OpenAI Whisper (local, offline) transcribes speech
-4. **Text Insertion**: `ydotool` simulates keyboard typing to insert text
+1. **Audio Recording**: PyAudio records from default microphone with PipeWire noise prevention
+2. **Transcription**: OpenAI Whisper (local, offline) transcribes speech
+3. **Text Insertion**: `xdotool` simulates keyboard typing to insert text at cursor position
 
 ### System Requirements
 
 - **OS**: Ubuntu 24.04+ (Wayland)
-- **GPU**: NVIDIA GPU with CUDA support
+- **GPU**: NVIDIA GPU with CUDA support (optional, works on CPU)
 - **RAM**: 4-12GB depending on model size
-- **Permissions**: User must be in `input` group
+- **Permissions**: No special permissions needed (uses xdotool for text insertion)
 - **Network**: Not required during use (only for initial model download)
 
 ### Files Created
@@ -259,8 +172,8 @@ uv run voice_to_text.py --keep-audio --min-duration 0.1
 
 ## Acceptance Criteria (from Spec)
 
-- ✅ AC-01: Recording starts within 200ms of Alt+R press
-- ✅ AC-02: Recording stops immediately on Alt+R release
+- ✅ AC-01: Recording starts within 200ms of command execution
+- ✅ AC-02: Recording stops after specified duration or SIGUSR1 signal
 - ✅ AC-03: Speech transcribed without network connection (fully offline)
 - ✅ AC-04: Transcribed text inserted at current cursor position
 - ✅ AC-05: Works across different applications (browser, text editor, terminal)
@@ -271,13 +184,12 @@ uv run voice_to_text.py --keep-audio --min-duration 0.1
 2. **GPU Required**: CUDA-capable NVIDIA GPU needed for transcription
 3. **Single Language**: Best results when speaking one language per recording
 4. **Input Latency**: Transcription takes a few seconds after recording stops
-5. **Permission Requirements**: Needs input group membership and ydotool daemon
 
 ## Support
 
 For issues or questions:
 1. Check this troubleshooting guide first
 2. Verify all setup steps completed
-3. Test with `--list-keyboards` to check permissions
+3. Test with `--record-once -d 5` to verify basic functionality
 4. Try `--keep-audio` to debug recording issues
-5. Check system logs: `journalctl --user -u ydotoold`
+5. Check xdotool installation: `xdotool type "test"`

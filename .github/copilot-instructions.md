@@ -3,16 +3,16 @@
 ## Project Overview
 
 A Python CLI application with three main scripts:
-- `record.py`: **Integrated CLI** - Records audio and automatically transcribes it in one command (recommended)
+- `record`: **Integrated CLI** - Records audio and automatically transcribes it in one command (recommended)
 - `audio_recorder.py`: Records audio from microphone and saves as WAV files
 - `transcribe.py`: Transcribes audio files to text using OpenAI's Whisper model
 
-The integrated CLI (`record.py`) combines both tools for a seamless workflow.
+The integrated CLI (`record`) combines both tools for a seamless workflow.
 
 ## Architecture
 
 **Three-script structure:**
-- `record.py` (~200 lines): Integrated CLI that imports and uses both AudioRecorder and AudioTranscriber
+- `record` (~200 lines): Integrated CLI that imports and uses both AudioRecorder and AudioTranscriber
 - `audio_recorder.py` (~135 lines): AudioRecorder class, PyAudio operations, WAV file writing
 - `transcribe.py` (~220 lines): AudioTranscriber class, Whisper model loading, batch processing
 - All use class-based architecture with main() CLI entry points
@@ -40,7 +40,7 @@ uv sync              # Install dependencies
 **Running the application:**
 ```bash
 # Recommended: Integrated CLI
-uv run record.py [options]             # Record + transcribe in one command
+uv run record [options]             # Record + transcribe in one command
 
 # Alternative: Separate tools
 uv run audio_recorder.py [options]     # Record audio only
@@ -127,16 +127,16 @@ There are no automated tests. To verify functionality:
 **Test integrated CLI (recommended):**
 ```bash
 # Quick 5-second recording + transcription
-uv run record.py -d 5 -m tiny
+uv run record -d 5 -m tiny
 
 # Test transcribe-only mode
-uv run record.py --transcribe-only recording_*.wav
+uv run record --transcribe-only recording_*.wav
 
 # Test with audio deletion
-uv run record.py -d 5 --delete-audio
+uv run record -d 5 --delete-audio
 
 # List available devices
-uv run record.py --list-devices
+uv run record --list-devices
 ```
 
 **Test recording separately:**
@@ -172,7 +172,7 @@ ls -lh *.txt
 ## Common Development Tasks
 
 **Adding CLI arguments to integrated tool:**
-- Add to argparse in `record.py` main() function
+- Add to argparse in `record` CLI (record_cli.py) main() function
 - Pass through to AudioRecorder or AudioTranscriber calls
 - Consider if the option should also be added to standalone scripts
 

@@ -33,7 +33,7 @@ else
     cd "$SCRIPT_DIR"
     
     # Start recording in background with PID file mode
-    nohup uv run voice_to_text.py --record-once --use-pidfile > /tmp/voice_to_text.log 2>&1 &
+    nohup uv run voice-to-text --record-once --use-pidfile > /tmp/voice_to_text.log 2>&1 &
     
     # Small delay to let it initialize
     sleep 0.5

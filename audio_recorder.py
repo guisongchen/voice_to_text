@@ -9,8 +9,17 @@ import argparse
 from datetime import datetime
 
 
+import warnings
+
 class AudioRecorder:
+    """DEPRECATED: Use voice_to_text.core.audio_service.AudioService instead."""
+
     def __init__(self, sample_rate=44100, channels=2, chunk_size=1024):
+        warnings.warn(
+            "AudioRecorder is deprecated. Use voice_to_text.core.audio_service.AudioService instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         self.sample_rate = sample_rate
         self.channels = channels
         self.chunk_size = chunk_size

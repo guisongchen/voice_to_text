@@ -2,14 +2,14 @@
 
 A Python CLI tool to record audio from your microphone and transcribe it to text using OpenAI's Whisper.
 
-**🚀 Main Tool: `record.py`** - Records audio and transcribes in one command (see [Quick Start](#-quick-start-with-recordpy-recommended))
+**🚀 Main Tool: `record`** - Records audio and transcribes in one command (see [Quick Start](#-quick-start-with-record-recommended))
 
-**⌨️ NEW: `voice_to_text.py`** - System-wide voice input with Alt+R hotkey! (see [Voice-to-Text Input Tool](#%EF%B8%8F-voice-to-text-input-tool))
+**⌨️ NEW: `voice-to-text`** - System-wide voice input with Alt+R hotkey! (see [Voice-to-Text Input Tool](#%EF%B8%8F-voice-to-text-input-tool))
 
 ## Features
 
 - ⌨️ **System-wide voice input**: Press Alt+R to record and insert text anywhere
-- 🎤 **One-command workflow**: Record and transcribe with `record.py`
+- 🎤 **One-command workflow**: Record and transcribe with `record`
 - 📝 Transcribe audio files to text using Whisper AI
 - 🚀 GPU-accelerated transcription (CUDA required)
 - 🌏 Supports multiple languages (Chinese, English, etc.)
@@ -82,7 +82,7 @@ A Python CLI tool to record audio from your microphone and transcribe it to text
 ./voice_to_text_toggle.sh
 
 # Or test with fixed duration (also no input group)
-uv run voice_to_text.py --record-once -d 5
+uv run voice-to-text --record-once -d 5
 ```
 
 **Step 2: Set up GNOME keyboard shortcut**
@@ -113,7 +113,7 @@ uv run voice_to_text.py --record-once -d 5
 **Method 1: Keyboard Monitoring (Requires Input Group)**
 ```bash
 # Requires: sudo usermod -aG input $USER (then log out/in)
-uv run voice_to_text.py --record-once
+uv run voice-to-text --record-once
 ```
 - Press Alt+R to start, Alt+R to stop
 - Requires input group membership
@@ -121,7 +121,7 @@ uv run voice_to_text.py --record-once
 **Method 2: Hotkey Mode - Press and Hold (Requires Input Group)**
 ```bash
 # Start continuous monitoring service
-uv run voice_to_text.py
+uv run voice-to-text
 ```
 - Hold Alt+R to record, release to stop
 - Requires input group membership
@@ -144,44 +144,44 @@ uv run voice_to_text.py
 **Basic usage:**
 ```bash
 # Manual stop with Alt+R (RECOMMENDED)
-uv run voice_to_text.py --record-once
+uv run voice-to-text --record-once
 
 # Fixed duration recording
-uv run voice_to_text.py --record-once -d 3   # 3 seconds
-uv run voice_to_text.py --record-once -d 10  # 10 seconds
+uv run voice-to-text --record-once -d 3   # 3 seconds
+uv run voice-to-text --record-once -d 10  # 10 seconds
 ```
 
 **Use a different Whisper model:**
 ```bash
 # Faster transcription (less accurate)
-uv run voice_to_text.py --record-once --model small
+uv run voice-to-text --record-once --model small
 
 # Best accuracy (slower)
-uv run voice_to_text.py --record-once --model large
+uv run voice-to-text --record-once --model large
 ```
 
 **Keep audio files for debugging:**
 ```bash
-uv run voice_to_text.py --record-once --keep-audio
+uv run voice-to-text --record-once --keep-audio
 ```
 
 **For hotkey mode (requires input group):**
 ```bash
 # Continuous monitoring with default settings
-uv run voice_to_text.py
+uv run voice-to-text
 
 # With different model
-uv run voice_to_text.py --model small
+uv run voice-to-text --model small
 ```
 
 **List available keyboard devices (hotkey mode troubleshooting):**
 ```bash
-uv run voice_to_text.py --list-keyboards
+uv run voice-to-text --list-keyboards
 ```
 
 **Set minimum recording duration:**
 ```bash
-uv run voice_to_text.py --min-duration 1.0  # Ignore recordings < 1 second
+uv run voice-to-text --min-duration 1.0  # Ignore recordings < 1 second
 ```
 
 #### Troubleshooting
@@ -189,7 +189,7 @@ uv run voice_to_text.py --min-duration 1.0  # Ignore recordings < 1 second
 **"Permission denied" error (hotkey mode only):**
 ```bash
 # Option 1: Use secure --record-once mode (RECOMMENDED)
-uv run voice_to_text.py --record-once -d 5
+uv run voice-to-text --record-once -d 5
 
 # Option 2: Add yourself to input group (less secure)
 sudo usermod -aG input $USER
@@ -242,43 +242,43 @@ xdotool type "test"
 
 ---
 
-### 🚀 Quick Start with `record.py` (Recommended)
+### 🚀 Quick Start with `record` (Recommended)
 
-The easiest way to use this tool is with **`record.py`** - an integrated CLI that records and transcribes in one command:
+The easiest way to use this tool is with **`record`** - an integrated CLI that records and transcribes in one command:
 
 **Basic usage (10 seconds):**
 ```bash
-uv run record.py
+uv run record
 ```
 
 **Record for 30 seconds:**
 ```bash
-uv run record.py -d 30
+uv run record -d 30
 ```
 
 **Use faster model:**
 ```bash
-uv run record.py -d 15 -m tiny
+uv run record -d 15 -m tiny
 ```
 
 **Delete audio after transcription (save space):**
 ```bash
-uv run record.py --delete-audio
+uv run record --delete-audio
 ```
 
 **Record only, skip transcription:**
 ```bash
-uv run record.py --no-transcribe -d 60
+uv run record --no-transcribe -d 60
 ```
 
 **Transcribe existing file without recording:**
 ```bash
-uv run record.py --transcribe-only existing.wav
+uv run record --transcribe-only existing.wav
 ```
 
 **List available microphones:**
 ```bash
-uv run record.py --list-devices
+uv run record --list-devices
 ```
 
 ### 📋 Advanced: Separate Recording and Transcription
@@ -360,7 +360,7 @@ uv run transcribe.py --force --all
 
 ## Options
 
-### Integrated CLI (record.py)
+### Integrated CLI (record)
 
 **Recording Options:**
 - `-d, --duration`: Recording duration in seconds (default: 10)
@@ -425,7 +425,7 @@ All models use GPU acceleration (CUDA) for faster transcription.
 ### Quick voice note with transcription:
 ```bash
 # Record 10 seconds and transcribe (keeps both files)
-uv run record.py
+uv run record
 
 # View the transcription
 cat recording_*.txt
@@ -434,7 +434,7 @@ cat recording_*.txt
 ### Interview recording (save space):
 ```bash
 # Record 30 minutes, transcribe, delete audio to save space
-uv run record.py -d 1800 --delete-audio -o interview.wav
+uv run record -d 1800 --delete-audio -o interview.wav
 
 # Only the text file remains
 cat interview.txt
@@ -453,8 +453,8 @@ uv run transcribe.py --all
 ### Re-transcribe with different model:
 ```bash
 # First transcription with tiny model (fast)
-uv run record.py -d 60 -m tiny -o meeting.wav
+uv run record -d 60 -m tiny -o meeting.wav
 
 # Re-transcribe with better model for accuracy
-uv run record.py --transcribe-only meeting.wav -m medium
+uv run record --transcribe-only meeting.wav -m medium
 ```
