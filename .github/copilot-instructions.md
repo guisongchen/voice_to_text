@@ -61,7 +61,13 @@ brew install portaudio
 sudo dnf install portaudio-devel
 ```
 
-**Whisper** may require ffmpeg for non-WAV audio formats (optional):
+**Whisper** requires NVIDIA GPU with CUDA:
+- The transcription script uses GPU acceleration (`device="cuda"`)
+- Requires NVIDIA drivers and CUDA toolkit installed
+- Verify with: `nvidia-smi`
+- PyTorch with CUDA support is installed via openai-whisper dependency
+
+**Optional - ffmpeg** for non-WAV audio formats:
 
 ```bash
 # Ubuntu/Debian
@@ -89,14 +95,21 @@ These are configurable via CLI flags but should remain consistent defaults.
 
 ### Whisper Model Selection
 - Default: `small` (good balance of speed/accuracy)
+- GPU acceleration: All models use CUDA for faster processing
 - Model files download automatically on first use (~100MB-3GB)
 - Models cached in `~/.cache/whisper/`
-- Larger models = better accuracy but much slower
+- Larger models = better accuracy but slower (though GPU helps significantly)
 
 **Model recommendations:**
 - Development/testing: `tiny` or `base` (fast iteration)
 - Production: `small` or `medium` (good quality)
-- Best quality needed: `large` (very slow, high RAM usage)
+- Best quality needed: `large` (slow even on GPU, high VRAM usage ~10GB)
+
+**GPU Usage:**
+- Hard-coded to use CUDA (`device="cuda"`)
+- Displays GPU name on model load
+- ~5-10x faster than CPU transcription
+- VRAM usage varies by model size
 
 ### Resource Cleanup
 The `AudioRecorder` class uses `pyaudio.PyAudio()` which must be terminated. Always use the try-finally pattern in `main()` to ensure `recorder.close()` is called.

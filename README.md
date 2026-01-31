@@ -6,9 +6,16 @@ A Python CLI tool to record audio from your microphone and transcribe it to text
 
 - 🎤 Record audio from microphone and save as WAV files
 - 📝 Transcribe audio files to text using Whisper AI
+- 🚀 GPU-accelerated transcription (CUDA required)
 - ⚙️ Configurable sample rate, channels, and recording duration
 - 🎯 Multiple Whisper model sizes for speed/accuracy tradeoff
 - 📦 Batch transcription support
+
+## Requirements
+
+- Python 3.10+
+- NVIDIA GPU with CUDA support (for transcription)
+- System audio libraries (PortAudio)
 
 ## Installation
 
@@ -24,7 +31,12 @@ A Python CLI tool to record audio from your microphone and transcribe it to text
    sudo dnf install portaudio-devel
    ```
 
-2. Install Python dependencies with uv:
+2. Ensure NVIDIA GPU drivers and CUDA are installed:
+   ```bash
+   nvidia-smi  # Should show your GPU
+   ```
+
+3. Install Python dependencies with uv:
    ```bash
    uv sync
    ```
@@ -69,6 +81,8 @@ uv run audio_recorder.py -d 60 -o interview.wav -r 44100 -c 2
 ```
 
 ### Transcribing Audio
+
+**Note:** Transcription requires an NVIDIA GPU with CUDA. The script will automatically use GPU acceleration for faster processing.
 
 #### Transcribe a single file:
 ```bash
@@ -124,13 +138,15 @@ uv run transcribe.py --force --all
 
 ### Whisper Model Sizes
 
-| Model  | Speed    | Accuracy | RAM Usage |
-|--------|----------|----------|-----------|
-| tiny   | Fastest  | Low      | ~1 GB     |
-| base   | Fast     | Good     | ~1 GB     |
-| small  | Balanced | Better   | ~2 GB     |
-| medium | Slow     | High     | ~5 GB     |
-| large  | Slowest  | Best     | ~10 GB    |
+All models use GPU acceleration (CUDA) for faster transcription.
+
+| Model  | Speed    | Accuracy | VRAM Usage | Best For            |
+|--------|----------|----------|------------|---------------------|
+| tiny   | Fastest  | Low      | ~1 GB      | Quick tests         |
+| base   | Fast     | Good     | ~1 GB      | Basic transcription |
+| small  | Balanced | Better   | ~2 GB      | General use (default)|
+| medium | Slow     | High     | ~5 GB      | High accuracy needs |
+| large  | Slowest  | Best     | ~10 GB     | Professional quality|
 
 ## Features
 

@@ -3,12 +3,13 @@
 Transcribe audio files to text using OpenAI's Whisper model.
 """
 import whisper
+import torch
 import argparse
 import sys
 from pathlib import Path
 import warnings
 
-# Suppress FP16 warnings on CPU
+# Suppress FP16 warnings
 warnings.filterwarnings("ignore", message="FP16 is not supported on CPU")
 
 
@@ -19,10 +20,13 @@ class AudioTranscriber:
         Args:
             model_size: One of 'tiny', 'base', 'small', 'medium', 'large'
         """
-        print(f"Loading Whisper model '{model_size}'...")
+        print(f"Loading Whisper model '{model_size}' on GPU...")
         print("(First run will download model files)")
-        self.model = whisper.load_model(model_size)
-        print("Model loaded successfully!")
+        self.model = whisper.load_model(model_size, device="cuda")
+        
+        # Display GPU info
+        gpu_name = torch.cuda.get_device_name(0)
+        print(f"Model loaded successfully on {gpu_name}!")
     
     def transcribe_file(self, audio_path, output_path=None, force=False):
         """Transcribe a single audio file.
