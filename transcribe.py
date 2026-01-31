@@ -14,7 +14,7 @@ warnings.filterwarnings("ignore", message="FP16 is not supported on CPU")
 
 
 class AudioTranscriber:
-    def __init__(self, model_size="small"):
+    def __init__(self, model_size="medium"):
         """Initialize transcriber with specified Whisper model size.
         
         Args:
