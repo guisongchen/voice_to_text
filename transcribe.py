@@ -60,16 +60,15 @@ class AudioTranscriber:
         print("This may take a while...")
         
         try:
-            # Set Chinese as primary language for mixed Chinese/English content
-            # This preserves Chinese text while still handling English naturally
+            # Auto-detect language and transcribe
             result = self.model.transcribe(
                 str(audio_path), 
                 verbose=False,
-                language='zh',  # Chinese as primary language
+                language=None,  # Auto-detect language
                 task='transcribe'  # Transcribe in original language(s)
             )
             text = result["text"].strip()
-            detected_language = result.get("language", "zh")
+            detected_language = result.get("language", "unknown")
             
             # Save transcription
             output_path.write_text(text, encoding='utf-8')

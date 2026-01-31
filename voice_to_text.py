@@ -448,12 +448,11 @@ class VoiceToTextService:
         
         try:
             # Transcribe using pre-loaded model
-            # Set Chinese as primary language to preserve Chinese text
-            # English words will still be transcribed naturally
+            # Auto-detect language - Whisper will choose based on audio
             result = self.transcriber.model.transcribe(
                 self.current_audio_file,
                 verbose=False,
-                language='zh',  # Chinese as primary (preserves Chinese, handles English too)
+                language=None,  # Auto-detect language
                 task='transcribe'  # Transcribe in original language(s)
             )
             text = result["text"].strip()
