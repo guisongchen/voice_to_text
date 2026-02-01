@@ -36,14 +36,22 @@ class AudioFeedback:
         # Pre-generate beep tones to avoid runtime overhead
         self._start_beep = self._generate_beep_tone(
             frequency=START_BEEP_FREQ,
-            duration=START_BEEP_DURATION
+            duration=START_BEEP_DURATION,
+            amplitude=START_BEEP_AMPLITUDE
         )
         self._finish_beep = self._generate_beep_tone(
             frequency=FINISH_BEEP_FREQ,
-            duration=FINISH_BEEP_DURATION
+            duration=FINISH_BEEP_DURATION,
+            amplitude=FINISH_BEEP_AMPLITUDE
         )
+        
+        # Pre-generate silence gap for double beep
+        # Use active noise (dither) instead of pure zeros to prevent buffering/merging issues
+        gap_duration = 0.15  # Increased to 150ms for better separation
+        gap_samples = int(self.sample_rate * gap_duration)
+        self._silence_gap = np.random.randint(-1, 2, gap_samples, dtype=np.int16)
 
-    def _generate_beep_tone(self, frequency=880, duration=0.2):
+    def _generate_beep_tone(self, frequency=880, duration=0.2, amplitude=0.5):
         """
         Generate a beep tone as numpy array.
 
@@ -59,7 +67,7 @@ class AudioFeedback:
         t = np.linspace(0, duration, num_samples, False)
 
         # Generate sine wave
-        amplitude = BEEP_AMPLITUDE  # 30% volume to prevent clipping
+        # Generate sine wave
         sine_wave = amplitude * np.sin(2 * np.pi * frequency * t)
 
         # Apply fade in/out to avoid clicks
@@ -125,6 +133,15 @@ class AudioFeedback:
 
             if self.output_stream is None or not self.output_stream.is_active():
                 self.output_stream = self.pyaudio_instance.open(**self._stream_params)
+                
+                # Write "active silence" (low level noise) to force wake-up
+                # Pure zeros can sometimes be ignored by aggressive power saving
+                warmup_duration = 0.25  # Increased to 250ms
+                num_samples = int(self.sample_rate * warmup_duration)
+                # Random noise at lowest bit level (1/32767)
+                warmup_signal = np.random.randint(-1, 2, num_samples, dtype=np.int16)
+                self.output_stream.write(warmup_signal.tobytes())
+
         except Exception as e:
             print(f"\nWarning: Could not open output stream: {e}", file=sys.stderr)
 
@@ -142,8 +159,14 @@ class AudioFeedback:
         """Play audio feedback beep for recording start."""
         try:
             # Quick double beep for start using pre-generated tone
+            # Use explicit silence buffer instead of sleep to ensure clean gap in stream
+            
+            # Pre-roll with active silence to ensure audio device is at full volume
+            # This fixes the issue where the first beep is weaker than the second due to ramp-up
+            self._play_tone(self._silence_gap)
+            
             self._play_tone(self._start_beep)
-            time.sleep(0.04)
+            self._play_tone(self._silence_gap)
             self._play_tone(self._start_beep)
         except Exception as e:
             print(f"\nWarning: Beep failed: {e}", file=sys.stderr)

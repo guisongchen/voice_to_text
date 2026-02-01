@@ -10,16 +10,17 @@ CHUNK_SIZE = 1024
 # FORMAT will be set dynamically when pyaudio is imported
 
 # PipeWire noise prevention
-WARMUP_CHUNKS = 3  # ~70ms - just enough to stabilize
+WARMUP_CHUNKS = 0  # Disabled to prevent cutting off start of speech
 COOLDOWN_CHUNKS = 2  # ~50ms - just for clean closure
 
 # Beep configuration
-START_BEEP_FREQ = 880  # Hz (A5 note)
-FINISH_BEEP_FREQ = 660  # Hz (E5 note)
+START_BEEP_FREQ = 784  # Hz (G5 note)
+FINISH_BEEP_FREQ = 523  # Hz (C5 note)
 BEEP_DURATION = 0.2  # seconds
-START_BEEP_DURATION = 0.08  # seconds for double beep
-FINISH_BEEP_DURATION = 0.1  # seconds for single beep
-BEEP_AMPLITUDE = 0.3  # 30% volume to prevent clipping
+START_BEEP_DURATION = 0.15  # seconds
+FINISH_BEEP_DURATION = 0.2  # seconds
+START_BEEP_AMPLITUDE = 0.9  # High volume for start
+FINISH_BEEP_AMPLITUDE = 0.4  # Lower volume for finish (user requested quieter)
 FADE_SAMPLES = int(SAMPLE_RATE * 0.01)  # 10ms fade
 
 # Timeout configuration
