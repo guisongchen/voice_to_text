@@ -71,16 +71,16 @@ def start_recording():
     # Wait for initialization
     time.sleep(0.5)
     
-    # Show notification if available
-    try:
-        subprocess.run(
-            ["notify-send", "Voice to Text", 
-             "Recording started - press Alt+R again to stop", "-t", "2000"],
-            check=False,
-            capture_output=True
-        )
-    except FileNotFoundError:
-        pass  # notify-send not available
+    # # Show notification if available
+    # try:
+    #     subprocess.run(
+    #         ["notify-send", "Voice to Text", 
+    #          "Recording started - press Alt+R again to stop", "-t", "2000"],
+    #         check=False,
+    #         capture_output=True
+    #     )
+    # except FileNotFoundError:
+    #     pass  # notify-send not available
     
     print("✓ Recording started")
 
