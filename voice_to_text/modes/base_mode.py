@@ -80,7 +80,7 @@ class BaseMode(ABC):
         # Play start beep
         self.audio_feedback.play_start_beep()
         # Minimal delay - just let beep finish playing
-        time.sleep(0.05)
+        time.sleep(0.02)
 
         self.is_recording = True
         self.recording_start_time = time.time()
@@ -133,7 +133,10 @@ class BaseMode(ABC):
                 audio_file,
                 verbose=False,
                 language=None,  # Auto-detect language
-                task='transcribe'  # Transcribe in original language(s)
+                task='transcribe',  # Transcribe in original language(s)
+                fp16=True,  # Use FP16 for faster GPU inference
+                best_of=1,  # Reduce from default 5 for speed
+                beam_size=1  # Reduce from default 5 for speed
             )
             text = result["text"].strip()
 

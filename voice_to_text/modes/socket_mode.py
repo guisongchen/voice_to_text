@@ -55,7 +55,7 @@ class SocketMode(BaseMode):
     def run(self):
         """Run socket mode recording."""
         print("\n" + "=" * 60)
-        print("✓ Ready! Recording will start in 2 seconds")
+        print("✓ Ready! Recording will start in 0.3 seconds")
         print("  Run toggle script again to stop")
         print("=" * 60)
 
@@ -66,9 +66,9 @@ class SocketMode(BaseMode):
             self.socket_thread = threading.Thread(target=self._socket_listener, daemon=True)
             self.socket_thread.start()
 
-            print("\nStarting recording in 2 seconds...")
+            print("\nStarting recording in 0.3 seconds...")
             print("Run the same command again to stop recording")
-            time.sleep(2)
+            time.sleep(0.3)
 
             self._start_recording()
 

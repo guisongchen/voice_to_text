@@ -47,7 +47,7 @@ class AudioFeedback:
         
         # Pre-generate silence gap for double beep
         # Use active noise (dither) instead of pure zeros to prevent buffering/merging issues
-        gap_duration = 0.15  # Increased to 150ms for better separation
+        gap_duration = 0.08  # 80ms - balance between speed and clarity
         gap_samples = int(self.sample_rate * gap_duration)
         self._silence_gap = np.random.randint(-1, 2, gap_samples, dtype=np.int16)
 
@@ -136,7 +136,7 @@ class AudioFeedback:
                 
                 # Write "active silence" (low level noise) to force wake-up
                 # Pure zeros can sometimes be ignored by aggressive power saving
-                warmup_duration = 0.25  # Increased to 250ms
+                warmup_duration = 0.1  # 100ms - balance between speed and device wake-up
                 num_samples = int(self.sample_rate * warmup_duration)
                 # Random noise at lowest bit level (1/32767)
                 warmup_signal = np.random.randint(-1, 2, num_samples, dtype=np.int16)
