@@ -11,28 +11,22 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PIDFILE="/tmp/voice_to_text.pid"
+SOCKET_FILE="/tmp/voice_to_text.sock"
 
 # Check if recording is already running
-if [ -f "$PIDFILE" ]; then
-    # PID file exists - stop recording
-    PID=$(cat "$PIDFILE")
-    
-    # Check if process is actually running
-    if kill -0 "$PID" 2>/dev/null; then
-        echo "Stopping recording (PID: $PID)..."
-        kill -SIGUSR1 "$PID"
-    else
-        # Stale PID file
-        echo "Removing stale PID file..."
-        rm -f "$PIDFILE"
-    fi
+if [ -S "$SOCKET_FILE" ]; then
+    # Socket exists - send stop command via socket
+    echo "Stopping recording..."
+    echo "STOP" | nc -U "$SOCKET_FILE" 2>/dev/null || {
+        # If nc fails, try Python method
+        python3 -c "import socket; s=socket.socket(socket.AF_UNIX); s.connect('$SOCKET_FILE'); s.sendall(b'STOP\n'); print(s.recv(1024)); s.close()"
+    }
 else
-    # No PID file - start recording
+    # No socket - start recording
     echo "Starting recording..."
     cd "$SCRIPT_DIR"
     
-    # Start recording in background (always uses PID file mode)
+    # Start recording in background (uses socket mode for safer IPC)
     nohup uv run voice-to-text > /tmp/voice_to_text.log 2>&1 &
     
     # Small delay to let it initialize

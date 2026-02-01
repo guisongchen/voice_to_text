@@ -18,7 +18,6 @@ setup(
     entry_points={
         "console_scripts": [
             "voice-to-text=voice_to_text.cli.voice_to_text_cli:main",
-            "record=voice_to_text.cli.record_cli:main",
         ],
     },
     python_requires=">=3.10",
