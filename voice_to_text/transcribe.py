@@ -65,11 +65,24 @@ class AudioTranscriber:
             result = self.model.transcribe(
                 str(audio_path), 
                 verbose=False,
-                language=None,  # Auto-detect language
-                task='transcribe'  # Transcribe in original language(s)
+                language=None,  # auto-detect
+                task='transcribe'
             )
             text = result["text"].strip()
             detected_language = result.get("language", "unknown")
+
+            # if not English or Chinese, re-transcribe as English
+            if detected_language not in ['en', 'zh']:
+                print(f"  Warning: Detected language '{detected_language}' is not English or Chinese")
+                print(f"  Re-transcribing with English...")
+                result = self.model.transcribe(
+                    str(audio_path), 
+                    verbose=False,
+                    language='en',
+                    task='transcribe'
+                )
+                text = result["text"].strip()
+                detected_language = 'en'
             
             # Save transcription
             output_path.write_text(text, encoding='utf-8')
