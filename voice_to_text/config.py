@@ -36,6 +36,5 @@ PID_FILE_PATH = '/tmp/voice_to_text.pid'
 MIN_DURATION_DEFAULT = 0.5  # seconds
 
 # Model configuration
-MODEL_SIZE_DEFAULT = 'medium'
+MODEL_SIZE_DEFAULT = 'small'
 MODEL_CHOICES = ['tiny', 'base', 'small', 'medium', 'large']
-

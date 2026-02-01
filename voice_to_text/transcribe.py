@@ -8,6 +8,7 @@ import argparse
 import sys
 from pathlib import Path
 import warnings
+from voice_to_text.config import MODEL_SIZE_DEFAULT, MODEL_CHOICES
 
 # Suppress FP16 warnings
 warnings.filterwarnings("ignore", message="FP16 is not supported on CPU")
@@ -179,9 +180,9 @@ Model sizes (accuracy vs speed):
     parser.add_argument(
         '-m', '--model',
         type=str,
-        default='small',
-        choices=['tiny', 'base', 'small', 'medium', 'large'],
-        help='Whisper model size (default: small)'
+        default=MODEL_SIZE_DEFAULT,
+        choices=MODEL_CHOICES,
+        help=f'Whisper model size (default: {MODEL_SIZE_DEFAULT})'
     )
     parser.add_argument(
         '-o', '--output',

@@ -4,7 +4,7 @@ Text insertion using xdotool.
 
 import subprocess
 
-from .config import XDOTOOL_TIMEOUT
+from ..config import XDOTOOL_TIMEOUT
 
 
 class TextInserter:

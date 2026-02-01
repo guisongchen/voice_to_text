@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 from .base_mode import BaseMode
 
-from ..core.config import PID_FILE_PATH
+from ..config import PID_FILE_PATH
 
 
 class SocketMode(BaseMode):

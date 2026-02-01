@@ -11,7 +11,7 @@ import queue
 import time
 from pathlib import Path
 
-from .config import *
+from ..config import *
 
 
 class AudioService:

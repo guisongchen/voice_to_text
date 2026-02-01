@@ -8,7 +8,7 @@ import pyaudio
 import time
 import sys
 
-from .config import *
+from ..config import *
 
 
 class AudioFeedback:

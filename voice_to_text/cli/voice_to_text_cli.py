@@ -6,6 +6,7 @@ import argparse
 import sys
 
 from ..services.voice_to_text_service import VoiceToTextService
+from ..config import MODEL_SIZE_DEFAULT, MODEL_CHOICES
 
 
 
@@ -44,9 +45,9 @@ Desktop Shortcut Setup (GNOME):
     parser.add_argument(
         '-m', '--model',
         type=str,
-        default='medium',
-        choices=['tiny', 'base', 'small', 'medium', 'large'],
-        help='Whisper model size (default: medium per spec)'
+        default=MODEL_SIZE_DEFAULT,
+        choices=MODEL_CHOICES,
+        help=f'Whisper model size (default: {MODEL_SIZE_DEFAULT})'
     )
     parser.add_argument(
         '--keep-audio',
