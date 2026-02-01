@@ -117,14 +117,10 @@ Audio files are saved in `/tmp/` with timestamps.
 ### Safety Features
 
 The tool uses Unix domain sockets for inter-process communication, which provides:
-
-✅ No PID reuse vulnerabilities  
 ✅ Reliable message delivery with ACK  
 ✅ Atomic socket operations  
 ✅ Automatic cleanup of stale sockets  
 ✅ Better error handling  
-
-See [SOCKET_MODE_MIGRATION.md](SOCKET_MODE_MIGRATION.md) for details.
 
 ## Project Structure
 
