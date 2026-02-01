@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 from .base_mode import BaseMode
 
-from ..config import PID_FILE_PATH
+from ..config import SOCKET_PATH
 
 
 class SocketMode(BaseMode):
@@ -20,7 +20,7 @@ class SocketMode(BaseMode):
         """Initialize socket mode."""
         super().__init__(audio_service, text_inserter,
                         audio_feedback, transcriber, config)
-        self.socket_path = Path(PID_FILE_PATH).with_suffix('.sock')
+        self.socket_path = Path(SOCKET_PATH)
         self.server_socket = None
         self.socket_thread = None
 
@@ -125,7 +125,7 @@ class SocketMode(BaseMode):
     @staticmethod
     def send_stop_command():
         """Send stop command to running instance."""
-        socket_path = Path(PID_FILE_PATH).with_suffix('.sock')
+        socket_path = Path(SOCKET_PATH)
         
         if not socket_path.exists():
             print("No recording instance found")

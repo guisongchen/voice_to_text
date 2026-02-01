@@ -139,11 +139,11 @@ class AudioService:
 
         # Wait for recording thread to finish (includes cool-down)
         if self.recording_thread:
-            self.recording_thread.join(timeout=RECORDING_THREAD_TIMEOUT)
+            self.recording_thread.join(timeout=3.0)
 
         # Check if recording was successful
         try:
-            status, data = self.audio_queue.get(timeout=QUEUE_TIMEOUT)
+            status, data = self.audio_queue.get(timeout=1.0)
             if status == 'error':
                 print(f"  ✗ Recording error: {data}")
                 return None
