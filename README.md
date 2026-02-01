@@ -1,358 +1,230 @@
-# Audio Recorder with Whisper Transcription
+# Voice-to-Text Input Tool
 
-A Python CLI tool to record audio from your microphone and transcribe it to text using OpenAI's Whisper.
-
-**🚀 Main Tool: `record`** - Records audio and transcribes in one command (see [Quick Start](#-quick-start-with-record-recommended))
-
-**⌨️ NEW: `voice-to-text`** - System-wide voice input with Alt+R hotkey! (see [Voice-to-Text Input Tool](#%EF%B8%8F-voice-to-text-input-tool))
+A system-wide voice input tool for Linux that lets you record audio and insert transcribed text anywhere using a keyboard shortcut.
 
 ## Features
 
-- ⌨️ **System-wide voice input**: Press Alt+R to record and insert text anywhere
-- 🎤 **One-command workflow**: Record and transcribe with `record`
-- 📝 Transcribe audio files to text using Whisper AI
-- 🚀 GPU-accelerated transcription (CUDA required)
-- 🌏 Supports multiple languages (Chinese, English, etc.)
-- ⚙️ Fixed sample rate (44100Hz) and stereo channels
-- 🎯 Multiple Whisper model sizes for speed/accuracy tradeoff
-- 💾 Optional audio file deletion to save space
-- 📦 Batch transcription support
+⌨️ **System-wide voice input** - Press Alt+R to record, press again to transcribe and insert text  
+🎤 **One-command workflow** - Simple toggle script for start/stop  
+📝 **Whisper AI transcription** - Accurate speech-to-text using OpenAI's Whisper  
+🚀 **GPU-accelerated** - Fast transcription with CUDA support  
+🔒 **Safe IPC** - Unix domain socket communication (no PID reuse vulnerabilities)  
+🌏 **Multi-language support** - Chinese, English, and many more languages  
 
 ## Requirements
 
 - Python 3.10+
-- NVIDIA GPU with CUDA support (for transcription)
+- Ubuntu/Linux with X11
+- NVIDIA GPU with CUDA (recommended for fast transcription)
+- xdotool (for text insertion)
 - System audio libraries (PortAudio)
-- **For voice-to-text**: Ubuntu 24.04+ with Wayland, ydotool, input group permissions
 
 ## Installation
 
-1. Install system dependencies (for PyAudio):
-   ```bash
-   # Ubuntu/Debian
-   sudo apt-get install portaudio19-dev
-   
-   # macOS
-   brew install portaudio
-   
-   # Fedora
-   sudo dnf install portaudio-devel
-   ```
+### 1. Install System Dependencies
 
-2. **For voice-to-text tool**, install xdotool (text insertion):
-   ```bash
-   sudo apt install xdotool
-   ```
-
-3. Ensure NVIDIA GPU drivers and CUDA are installed:
-   ```bash
-   nvidia-smi  # Should show your GPU
-   ```
-
-4. Install Python dependencies with uv:
-   ```bash
-   uv sync
-   ```
-
-## Usage
-
-### ⌨️ Voice-to-Text Input Tool
-
-**NEW!** System-wide voice input with hotkey support. Press `Alt+R` to record speech, transcribe, and automatically insert text at your cursor position - works in any application!
-
-#### Quick Start (Recommended)
-
-**No special permissions needed!** Uses signal-based approach instead of keyboard monitoring.
-
-**Step 1: Test the tool**
 ```bash
-# Test with toggle script (RECOMMENDED - no input group needed)
+# Install xdotool for text insertion
+sudo apt install xdotool
+
+# Install PortAudio for audio recording
+sudo apt-get install portaudio19-dev
+```
+
+### 2. Verify CUDA Installation
+
+```bash
+nvidia-smi  # Should show your GPU
+```
+
+### 3. Install Python Package
+
+```bash
+# Clone the repository
+git clone <your-repo-url>
+cd voice_to_text
+
+# Install with uv (recommended)
+uv sync
+
+# Or install with pip
+pip install -e .
+```
+
+## Quick Start
+
+### Desktop Shortcut Setup (Recommended)
+
+Set up a keyboard shortcut for hands-free voice input:
+
+**For GNOME Desktop:**
+
+1. Open **Settings** → **Keyboard** → **Keyboard Shortcuts**
+2. Click **"+"** to add a custom shortcut
+3. Set the following:
+   - **Name**: `Voice to Text`
+   - **Command**: `/full/path/to/voice_to_text_socket_toggle.py`
+   - **Shortcut**: Press `Alt+R`
+
+**Usage:**
+- Press `Alt+R` to start recording
+- Speak your text
+- Press `Alt+R` again to stop, transcribe, and insert text at cursor
+
+### Command Line Usage
+
+```bash
+# Start recording (runs in background)
+./voice_to_text_socket_toggle.py
+
+# Stop recording and transcribe (run same command again)
+./voice_to_text_socket_toggle.py
+
+# Or use the bash version
 ./voice_to_text_toggle.sh
 ```
 
-**Step 2: Set up GNOME keyboard shortcut**
-1. Open **Settings → Keyboard → Keyboard Shortcuts**
-2. Scroll down and click **"+"** to add custom shortcut
-3. **Name**: `Voice to Text`
-4. **Command**: 
-   ```
-   /home/YOUR_USERNAME/vibe_projects/voice_to_text/voice_to_text_toggle.sh
-   ```
-   (Replace `YOUR_USERNAME` with your actual username - use full absolute path)
-5. Click **Set Shortcut** and press `Alt+R`
-6. Done! Now `Alt+R` works system-wide
+## How It Works
 
-**How to use:**
-1. **Focus any application** (browser, editor, terminal, etc.)
-2. **Press Alt+R** - Recording starts (2 audio beeps)
-3. **Speak clearly** - Your speech is being recorded
-4. **Press Alt+R again** - Recording stops (1 beep), transcription begins
-5. **Text appears** - Inserted at your cursor position!
+1. **Press shortcut** → Recording starts (you'll hear a beep)
+2. **Speak your text** → Audio is being captured
+3. **Press shortcut again** → Recording stops (you'll hear another beep)
+4. **Transcription happens** → Whisper AI converts speech to text
+5. **Text is inserted** → Transcribed text appears at your cursor position
 
-**Technical details:** The toggle script uses PID files and SIGUSR1 signals - no keyboard monitoring required!
+## Configuration
 
-**Note:** Audio feedback uses programmatic beeps (880Hz/660Hz tones) that work in all scenarios including desktop shortcuts.
+### Model Sizes
 
+Choose different Whisper models for speed vs. accuracy tradeoff:
 
-#### Features
-
-- 🌍 **System-wide**: Works in browser, text editor, terminal, any application
-- 🔒 **Secure**: Toggle script needs no special permissions (RECOMMENDED)
-- 🔔 **Audio feedback**: Programmatic beeps (880Hz/660Hz) work everywhere
-- ⌨️ **Direct insertion**: Uses xdotool to type text at cursor
-- ⚡ **Fast**: Pre-loaded model, transcription starts immediately (~0.5s overhead)
-- 🔒 **Private**: Fully offline, no internet required
-- 🎯 **Accurate**: Uses OpenAI Whisper medium model by default
-- 🌏 **Multilingual**: Auto-detects Chinese, English, and many other languages
-
-#### Voice-to-Text Options
-
-**Basic usage:**
 ```bash
-# Start recording (waits for SIGUSR1 to stop)
-uv run voice-to-text
+# Faster but less accurate
+voice-to-text --model small
+
+# Default (balanced)
+voice-to-text --model medium
+
+# More accurate but slower
+voice-to-text --model large
 ```
 
-**Use a different Whisper model:**
-```bash
-# Faster transcription (less accurate)
-uv run voice-to-text --model small
+Model sizes: `tiny`, `base`, `small`, `medium`, `large`
 
-# Best accuracy (slower)
-uv run voice-to-text --model large
+### Keep Audio Files for Debugging
+
+```bash
+voice-to-text --keep-audio
 ```
 
-**Keep audio files for debugging:**
-```bash
-uv run voice-to-text --keep-audio
+Audio files are saved in `/tmp/` with timestamps.
+
+## Technical Details
+
+### Architecture
+
+- **IPC Method**: Unix domain socket (`/tmp/voice_to_text.sock`)
+- **Audio Format**: 44.1kHz, stereo, WAV
+- **Transcription**: OpenAI Whisper (GPU-accelerated)
+- **Text Insertion**: xdotool (X11)
+
+### Safety Features
+
+The tool uses Unix domain sockets for inter-process communication, which provides:
+
+✅ No PID reuse vulnerabilities  
+✅ Reliable message delivery with ACK  
+✅ Atomic socket operations  
+✅ Automatic cleanup of stale sockets  
+✅ Better error handling  
+
+See [SOCKET_MODE_MIGRATION.md](SOCKET_MODE_MIGRATION.md) for details.
+
+## Project Structure
+
+```
+voice_to_text/
+├── cli/
+│   └── voice_to_text_cli.py      # CLI entry point
+├── core/
+│   ├── audio_feedback.py         # Audio beep feedback
+│   ├── audio_service.py          # Recording functionality
+│   ├── config.py                 # Configuration
+│   └── text_inserter.py          # Text insertion via xdotool
+├── modes/
+│   ├── base_mode.py              # Base mode class
+│   └── socket_mode.py            # Socket-based IPC mode
+├── services/
+│   ├── dependency_container.py   # Dependency injection
+│   └── voice_to_text_service.py  # Main service orchestrator
+└── transcribe.py                 # Whisper transcription
 ```
 
+## Troubleshooting
 
-#### Troubleshooting
-
-
-**Desktop shortcut not working:**
-- Ensure you used full absolute paths in the command
-- Test the command in terminal first
-- Check `~/.local/bin/uv` exists, or use `which uv` to find the path
-- Make sure xdotool is installed: `sudo apt install xdotool`
-
-**"xdotool not found" error:**
+### "xdotool not found"
 ```bash
-# Install xdotool
 sudo apt install xdotool
-
-# Test it works
-xdotool type "test"
 ```
 
-**Alt+R not detected:**
-- Make sure desktop shortcut is properly configured
-- Check that the toggle script has execute permissions
-- Test the command in terminal first
+### "No CUDA device found"
+The tool will fall back to CPU, but it will be slower. Install NVIDIA drivers and CUDA toolkit.
 
-**Text not inserting:**
-- Verify xdotool works: `xdotool type "test"`
-- Make sure the target application has focus and accepts text input
-- Some applications may block automated input (security feature)
-- Try clicking in the text field before pressing Alt+R
-
-**Transcription quality issues:**
-- Speak clearly and at normal pace
-- Reduce background noise
-- Use a better microphone
-- Try a larger model: `--model medium` or `--model large`
-
-**Audio beeps not audible:**
-- Tool generates programmatic audio beeps (880Hz start, 660Hz finish)
-- Check system volume settings
-- Beeps work in all scenarios (terminal, desktop shortcuts)
-- If beeps still too quiet, you can watch the console for status messages
-
-**Audio feedback beeps causing noise/buzz:**
-- The tool keeps output stream active during recording to prevent PipeWire noise
-- If noise persists, may indicate audio driver issue
-- Try `--keep-audio` to save recording and inspect with audio player
-
----
-
-### 🚀 Quick Start with `record` (Recommended)
-
-The easiest way to use this tool is with **`record`** - an integrated CLI that records and transcribes in one command:
-
-**Basic usage (uses Alt+R to stop):**
+### "Permission denied" for socket
 ```bash
-uv run record
+# Clean up stale socket file
+rm /tmp/voice_to_text.sock
 ```
 
-**Use faster model:**
+### Recording doesn't start
+Check the log file:
 ```bash
-uv run record -m tiny
+tail -f /tmp/voice_to_text.log
 ```
 
-**Delete audio after transcription (save space):**
+### Text not inserting
+- Make sure xdotool is installed
+- Ensure the target window has focus
+- Try clicking in the text field before using the shortcut
+
+## Development
+
+### Run Tests
 ```bash
-uv run record --delete-audio
+pytest
 ```
 
-**Record only, skip transcription:**
+### Install in Development Mode
 ```bash
-uv run record --no-transcribe
+pip install -e .
 ```
 
-**Save audio to custom filename:**
-```bash
-uv run record -o my_recording.wav
-```
+## FAQ
 
-**Transcribe existing file without recording:**
-```bash
-uv run record --transcribe-only existing.wav
-```
+**Q: Does this work on Wayland?**  
+A: Currently optimized for X11. Wayland support may require additional setup.
 
+**Q: Can I use this without a GPU?**  
+A: Yes, but transcription will be slower. The tool automatically falls back to CPU.
 
-### 📋 Advanced: Separate Recording and Transcription
+**Q: What languages are supported?**  
+A: Whisper supports many languages including English, Chinese, Spanish, French, German, Japanese, Korean, and more.
 
-If you need more control, you can use the tools separately:
+**Q: Can I use a different keyboard shortcut?**  
+A: Yes! Just set a different key combination when creating the desktop shortcut.
 
-#### Recording Audio Only
+**Q: Where are the audio files stored?**  
+A: By default in `/tmp/whisper_recording_*.wav` and deleted after transcription. Use `--keep-audio` to preserve them.
 
-Basic recording (uses Alt+R to stop):
-```bash
-uv run record
-```
+## Contributing
 
-Specify output filename:
-```bash
-uv run record -o my_recording.wav
-```
+Contributions are welcome! Please feel free to submit issues or pull requests.
 
-**Note:** The `record` command now uses the same Alt+R toggle mechanism as `voice-to-text`. Press Alt+R (desktop shortcut) to stop recording.
+## License
 
+[Your License Here]
 
+## Acknowledgments
 
-
-
-#### Transcribing Audio Only
-
-**Note:** Transcription requires an NVIDIA GPU with CUDA. The script will automatically use GPU acceleration for faster processing.
-
-Transcribe a single file:
-```bash
-uv run transcribe.py recording.wav
-```
-
-Transcribe all WAV files in current directory:
-```bash
-uv run transcribe.py --all
-```
-
-Use different Whisper model sizes:
-```bash
-# Faster, less accurate
-uv run transcribe.py -m tiny recording.wav
-
-# Better accuracy (default)
-uv run transcribe.py -m small recording.wav
-
-# Best accuracy, slower
-uv run transcribe.py -m medium recording.wav
-```
-
-Custom output filename:
-```bash
-uv run transcribe.py -o transcript.txt recording.wav
-```
-
-Force overwrite existing transcriptions:
-```bash
-uv run transcribe.py --force --all
-```
-
-## Options
-
-### Integrated CLI (record)
-
-**Recording Options:**
-- `-o, --output`: Output audio filename (default: temporary file)
-  - Press Alt+R (toggle script) to stop recording
-
-**Transcription Options:**
-- `-m, --model`: Whisper model size - tiny, base, small, medium, large (default: small)
-- `--delete-audio`: Delete audio file after successful transcription
-- `--no-transcribe`: Record only, skip transcription
-
-**Special Modes:**
-- `--transcribe-only FILE`: Transcribe existing file without recording
-
-**Note:** Uses same toggle script as voice-to-text (Alt+R desktop shortcut)
-
-### Transcriber (transcribe.py)
-
-- `audio_file`: Audio file to transcribe (positional argument)
-- `-a, --all`: Transcribe all WAV files in directory
-- `-d, --directory`: Specify directory for batch transcription
-- `-p, --pattern`: File pattern to match (default: *.wav)
-- `-m, --model`: Whisper model size - tiny, base, small, medium, large (default: small)
-- `-o, --output`: Custom output file path (single file only)
-- `--force`: Overwrite existing transcription files
-
-### Whisper Model Sizes
-
-All models use GPU acceleration (CUDA) for faster transcription.
-
-| Model  | Speed    | Accuracy | VRAM Usage | Best For            |
-|--------|----------|----------|------------|---------------------|
-| tiny   | Fastest  | Low      | ~1 GB      | Quick tests         |
-| base   | Fast     | Good     | ~1 GB      | Basic transcription |
-| small  | Balanced | Better   | ~2 GB      | General use (default)|
-| medium | Slow     | High     | ~5 GB      | High accuracy needs |
-| large  | Slowest  | Best     | ~10 GB     | Professional quality|
-
-## Features
-
-- Records audio from default microphone
-- Saves as WAV file
-- Transcribes audio to text with Whisper AI
-- Progress indicator during recording
-- Automatic timestamped filenames
-- Fixed sample rate (44100Hz) and stereo channels
-- Batch transcription support
-- Multiple Whisper models for speed/accuracy tradeoff
-- Keyboard interrupt support (Ctrl+C)
-- Smart skipping of already-transcribed files
-
-## Example Workflows
-
-### Quick voice note with transcription:
-```bash
-# Record with Alt+R stopping and transcribe (keeps both files)
-uv run record
-
-# View the transcription
-cat *.txt
-```
-
-### Interview recording (save space):
-```bash
-# Record with Alt+R stopping, transcribe, delete audio to save space
-uv run record --delete-audio -o interview.wav
-
-# Only the text file remains
-cat interview.txt
-```
-
-### Record only (no transcription):
-```bash
-# Record with Alt+R stopping, save audio only
-uv run record --no-transcribe -o audio_only.wav
-```
-
-### Re-transcribe with different model:
-```bash
-# First transcription with tiny model (fast)
-uv run record --transcribe-only meeting.wav -m tiny
-
-# Re-transcribe with better model for accuracy
-uv run record --transcribe-only meeting.wav -m medium
-```
+- [OpenAI Whisper](https://github.com/openai/whisper) for the transcription model
+- xdotool for text insertion functionality
