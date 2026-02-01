@@ -24,6 +24,24 @@ class AudioFeedback:
         self.sample_rate = sample_rate
         self.pyaudio_instance = None
         self.output_stream = None  # Keep stream alive to prevent PipeWire noise
+        
+        # Cache stream format parameters for efficiency
+        self._stream_params = {
+            'format': pyaudio.paInt16,
+            'channels': 1,
+            'rate': self.sample_rate,
+            'output': True
+        }
+        
+        # Pre-generate beep tones to avoid runtime overhead
+        self._start_beep = self._generate_beep_tone(
+            frequency=START_BEEP_FREQ,
+            duration=START_BEEP_DURATION
+        )
+        self._finish_beep = self._generate_beep_tone(
+            frequency=FINISH_BEEP_FREQ,
+            duration=FINISH_BEEP_DURATION
+        )
 
     def _generate_beep_tone(self, frequency=880, duration=0.2):
         """
@@ -55,6 +73,16 @@ class AudioFeedback:
         audio_data = (sine_wave * 32767).astype(np.int16)
         return audio_data
 
+    def _ensure_pyaudio(self):
+        """Ensure PyAudio instance is initialized."""
+        if self.pyaudio_instance is None:
+            try:
+                self.pyaudio_instance = pyaudio.PyAudio()
+            except Exception as e:
+                print(f"\nError: Failed to initialize PyAudio: {e}", file=sys.stderr)
+                raise
+        return self.pyaudio_instance
+
     def _play_tone(self, audio_data):
         """
         Play audio tone using PyAudio.
@@ -63,20 +91,14 @@ class AudioFeedback:
             audio_data: numpy array of int16 audio samples
         """
         try:
-            if self.pyaudio_instance is None:
-                self.pyaudio_instance = pyaudio.PyAudio()
+            self._ensure_pyaudio()
 
             # Use persistent stream if available, otherwise create temporary one
             if self.output_stream and self.output_stream.is_active():
                 stream = self.output_stream
                 close_after = False
             else:
-                stream = self.pyaudio_instance.open(
-                    format=pyaudio.paInt16,
-                    channels=1,
-                    rate=self.sample_rate,
-                    output=True
-                )
+                stream = self.pyaudio_instance.open(**self._stream_params)
                 close_after = True
 
             # Play audio
@@ -99,16 +121,10 @@ class AudioFeedback:
         which causes buzz/noise artifacts.
         """
         try:
-            if self.pyaudio_instance is None:
-                self.pyaudio_instance = pyaudio.PyAudio()
+            self._ensure_pyaudio()
 
             if self.output_stream is None or not self.output_stream.is_active():
-                self.output_stream = self.pyaudio_instance.open(
-                    format=pyaudio.paInt16,
-                    channels=1,
-                    rate=self.sample_rate,
-                    output=True
-                )
+                self.output_stream = self.pyaudio_instance.open(**self._stream_params)
         except Exception as e:
             print(f"\nWarning: Could not open output stream: {e}", file=sys.stderr)
 
@@ -125,26 +141,30 @@ class AudioFeedback:
     def play_start_beep(self):
         """Play audio feedback beep for recording start."""
         try:
-            # Quick double beep for start
-            beep = self._generate_beep_tone(frequency=START_BEEP_FREQ,
-                                           duration=START_BEEP_DURATION)
-            self._play_tone(beep)
-            time.sleep(0.04)  # Short pause between beeps
-            self._play_tone(beep)
-
+            # Quick double beep for start using pre-generated tone
+            self._play_tone(self._start_beep)
+            time.sleep(0.04)
+            self._play_tone(self._start_beep)
         except Exception as e:
             print(f"\nWarning: Beep failed: {e}", file=sys.stderr)
 
     def play_finish_beep(self):
         """Play audio feedback beep for recording finish."""
         try:
-            # Single quick beep for finish
-            beep = self._generate_beep_tone(frequency=FINISH_BEEP_FREQ,
-                                           duration=FINISH_BEEP_DURATION)
-            self._play_tone(beep)
-
+            # Single quick beep using pre-generated tone
+            self._play_tone(self._finish_beep)
         except Exception as e:
             print(f"\nWarning: Beep failed: {e}", file=sys.stderr)
+
+    def __enter__(self):
+        """Context manager entry."""
+        self.open_output_stream()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit."""
+        self.cleanup()
+        return False
 
     def cleanup(self):
         """Clean up resources."""
