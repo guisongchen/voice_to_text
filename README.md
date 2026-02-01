@@ -45,10 +45,8 @@ git clone <your-repo-url>
 cd voice_to_text
 
 # Install with uv (recommended)
-uv sync
-
-# Or install with pip
-pip install -e .
+uv sync  
+uv pip install .
 ```
 
 ## Quick Start
@@ -71,18 +69,6 @@ Set up a keyboard shortcut for hands-free voice input:
 - Speak your text
 - Press `Alt+R` again to stop, transcribe, and insert text at cursor
 
-### Command Line Usage
-
-```bash
-# Start recording (runs in background)
-./voice_to_text_socket_toggle.py
-
-# Stop recording and transcribe (run same command again)
-./voice_to_text_socket_toggle.py
-
-# Or use the bash version
-./voice_to_text_toggle.sh
-```
 
 ## How It Works
 
