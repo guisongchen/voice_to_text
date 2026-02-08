@@ -8,6 +8,7 @@ import argparse
 import sys
 from pathlib import Path
 import warnings
+import threading
 from voice_to_text.config import MODEL_SIZE_DEFAULT, MODEL_CHOICES
 
 # Suppress FP16 warnings
@@ -15,19 +16,56 @@ warnings.filterwarnings("ignore", message="FP16 is not supported on CPU")
 
 
 class AudioTranscriber:
-    def __init__(self, model_size="medium"):
+    def __init__(self, model_size="medium", async_load=False):
         """Initialize transcriber with specified Whisper model size.
         
         Args:
             model_size: One of 'tiny', 'base', 'small', 'medium', 'large'
+            async_load: If True, load model in background thread (for service mode)
         """
-        print(f"Loading Whisper model '{model_size}' on GPU...")
-        print("(First run will download model files)")
-        self.model = whisper.load_model(model_size, device="cuda")
+        self.model_size = model_size
+        self._model = None
+        self._model_ready = threading.Event()
+        self._load_error = None
         
-        # Display GPU info
-        gpu_name = torch.cuda.get_device_name(0)
-        print(f"Model loaded successfully on {gpu_name}!")
+        if async_load:
+            # Load model in background thread
+            self._load_thread = threading.Thread(
+                target=self._load_model_async,
+                daemon=True
+            )
+            self._load_thread.start()
+        else:
+            # Load model synchronously (default behavior)
+            print(f"Loading Whisper model '{model_size}' on GPU...")
+            print("(First run will download model files)")
+            self._model = whisper.load_model(model_size, device="cuda")
+            
+            # Display GPU info
+            gpu_name = torch.cuda.get_device_name(0)
+            print(f"Model loaded successfully on {gpu_name}!")
+            self._model_ready.set()
+    
+    def _load_model_async(self):
+        """Load model in background thread."""
+        try:
+            self._model = whisper.load_model(self.model_size, device="cuda")
+            self._model_ready.set()
+        except Exception as e:
+            self._load_error = e
+            self._model_ready.set()
+    
+    @property
+    def model(self):
+        """Get the model, waiting for it to load if necessary."""
+        self.wait_for_model()
+        return self._model
+    
+    def wait_for_model(self):
+        """Wait for model to finish loading. Raises exception if loading failed."""
+        self._model_ready.wait()
+        if self._load_error:
+            raise self._load_error
     
     def transcribe_file(self, audio_path, output_path=None, force=False):
         """Transcribe a single audio file.

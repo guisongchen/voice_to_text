@@ -2,6 +2,8 @@
 Dependency injection container for voice-to-text service.
 """
 
+import threading
+
 from ..core.audio_service import AudioService
 from ..core.audio_feedback import AudioFeedback
 from ..core.text_inserter import TextInserter
@@ -25,6 +27,7 @@ class DependencyContainer:
         self._audio_feedback = None
         self._text_inserter = None
         self._transcriber = None
+        self._transcriber_loading = False
 
     @property
     def audio_service(self):
@@ -50,14 +53,14 @@ class DependencyContainer:
 
     @property
     def transcriber(self):
-        """Get or create AudioTranscriber instance."""
-        if self._transcriber is None:
-            print(f"Loading Whisper model '{self.config.get('model_size', 'medium')}'...")
-            print("(This may take 5-10 seconds on first run)")
+        """Get or create AudioTranscriber instance with async loading."""
+        if self._transcriber is None and not self._transcriber_loading:
+            self._transcriber_loading = True
+            # Create transcriber with async loading enabled
             self._transcriber = AudioTranscriber(
-                model_size=self.config.get('model_size', 'medium')
+                model_size=self.config.get('model_size', 'medium'),
+                async_load=True
             )
-            print("✓ Model loaded successfully!")
         return self._transcriber
 
     def create_mode(self):

@@ -52,11 +52,11 @@ class VoiceToTextService:
 
         step += 1
 
-        # Pre-load Whisper model (will be loaded lazily by dependency container)
-        print(f"\n[{step}/{total_steps}] Loading Whisper model '{self.config['model_size']}'...")
-        print("  (This may take 5-10 seconds on first run)")
-        # Model will be loaded when accessed via property
-        _ = self.dependency_container.transcriber  # Trigger loading
+        # Start loading Whisper model in background
+        print(f"\n[{step}/{total_steps}] Initializing Whisper model '{self.config['model_size']}'...")
+        # Trigger async model loading by accessing transcriber
+        _ = self.dependency_container.transcriber
+        print("✓ Model loading in background")
 
         # Show diagnostic mode info
         if self.config['keep_audio']:

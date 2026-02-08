@@ -127,6 +127,9 @@ class BaseMode(ABC):
         print("🔄 Transcribing...")
 
         try:
+            # Wait for model to be ready (usually already loaded, but ensures safety)
+            self.transcriber.wait_for_model()
+            
             # Transcribe using pre-loaded model
             # Auto-detect language - Whisper will choose based on audio
             result = self.transcriber.model.transcribe(
