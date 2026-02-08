@@ -18,8 +18,8 @@ START_BEEP_FREQ = 784  # Hz (G5 note)
 FINISH_BEEP_FREQ = 523  # Hz (C5 note)
 START_BEEP_DURATION = 0.24  # seconds - balance between speed and audibility
 FINISH_BEEP_DURATION = 0.12  # seconds - balance between speed and audibility
-START_BEEP_AMPLITUDE = 1.0  # High volume for start
-FINISH_BEEP_AMPLITUDE = 0.5  # Lower volume for finish (user requested quieter)
+START_BEEP_AMPLITUDE = 1.0  # volume for start
+FINISH_BEEP_AMPLITUDE = 1.0  # volume for finish
 FADE_SAMPLES = int(SAMPLE_RATE * 0.01)  # 10ms fade
 
 # Timeout configuration
