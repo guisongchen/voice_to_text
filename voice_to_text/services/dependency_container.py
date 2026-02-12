@@ -2,8 +2,6 @@
 Dependency injection container for voice-to-text service.
 """
 
-import threading
-
 from ..core.audio_service import AudioService
 from ..core.audio_feedback import AudioFeedback
 from ..core.text_inserter import TextInserter
