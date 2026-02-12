@@ -30,5 +30,14 @@ XDOTOOL_TIMEOUT = 10  # seconds
 SOCKET_PATH = '/tmp/voice_to_text.sock'
 
 # Model configuration
-MODEL_SIZE_DEFAULT = 'small'
+MODEL_SIZE_DEFAULT = 'medium'
 MODEL_CHOICES = ['tiny', 'base', 'small', 'medium', 'large']
+
+# Language configuration - languages supported for transcription
+# Empty list means no restriction (auto-detect all languages)
+# Use language codes: 'en' (English), 'zh' (Chinese), 'es' (Spanish), etc.
+SUPPORTED_LANGUAGES = ['en', 'zh']  # English and Chinese only
+FALLBACK_LANGUAGE = 'en'  # Default language if detected language is not supported
+
+# Chinese output preference: 'simplified' or 'traditional'
+CHINESE_VARIANT = 'simplified'  # Force Simplified Chinese output
