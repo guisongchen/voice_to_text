@@ -9,26 +9,7 @@ import sys
 from pathlib import Path
 import warnings
 import threading
-from voice_to_text.config import MODEL_SIZE_DEFAULT, MODEL_CHOICES, SUPPORTED_LANGUAGES, FALLBACK_LANGUAGE, CHINESE_VARIANT
-
-# Import opencc for Chinese variant conversion
-try:
-    import opencc
-    _converter = None
-    def get_converter():
-        global _converter
-        if _converter is None:
-            if CHINESE_VARIANT == 'simplified':
-                _converter = opencc.OpenCC('t2s')  # Traditional to Simplified
-            elif CHINESE_VARIANT == 'traditional':
-                _converter = opencc.OpenCC('s2t')  # Simplified to Traditional
-            else:
-                _converter = None
-        return _converter
-except ImportError:
-    opencc = None
-    def get_converter():
-        return None
+from voice_to_text.config import MODEL_SIZE_DEFAULT, MODEL_CHOICES
 
 # Suppress FP16 warnings
 warnings.filterwarnings("ignore", message="FP16 is not supported on CPU")
@@ -117,44 +98,30 @@ class AudioTranscriber:
         print(f"\nTranscribing: {audio_path.name}")
         print("This may take a while...")
         
-        # Build prompt for Chinese variant preference
-        prompt = None
-        if CHINESE_VARIANT == 'simplified':
-            prompt = "请使用简体中文输出。"
-        elif CHINESE_VARIANT == 'traditional':
-            prompt = "請使用繁體中文輸出。"
-
         try:
             # Auto-detect language and transcribe
             result = self.model.transcribe(
-                str(audio_path),
+                str(audio_path), 
                 verbose=False,
                 language=None,  # auto-detect
-                task='transcribe',
-                initial_prompt=prompt
+                task='transcribe'
             )
             text = result["text"].strip()
             detected_language = result.get("language", "unknown")
 
-            # If detected language is not supported, fallback to default
-            if SUPPORTED_LANGUAGES and detected_language not in SUPPORTED_LANGUAGES:
-                print(f"  Warning: Detected language '{detected_language}' is not in supported languages")
-                print(f"  Re-transcribing with {FALLBACK_LANGUAGE}...")
+            # if not English or Chinese, re-transcribe as English
+            if detected_language not in ['en', 'zh']:
+                print(f"  Warning: Detected language '{detected_language}' is not English or Chinese")
+                print(f"  Re-transcribing with English...")
                 result = self.model.transcribe(
-                    str(audio_path),
+                    str(audio_path), 
                     verbose=False,
-                    language=FALLBACK_LANGUAGE,
-                    task='transcribe',
-                    initial_prompt=prompt
+                    language='en',
+                    task='transcribe'
                 )
                 text = result["text"].strip()
-                detected_language = FALLBACK_LANGUAGE
-
-            # Convert Chinese variant if needed
-            converter = get_converter()
-            if converter and detected_language == 'zh':
-                text = converter.convert(text)
-
+                detected_language = 'en'
+            
             # Save transcription
             output_path.write_text(text, encoding='utf-8')
             
