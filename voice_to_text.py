@@ -30,7 +30,7 @@ FINISH_BEEP_FREQ = 523
 START_BEEP_DURATION = 0.24
 FINISH_BEEP_DURATION = 0.12
 XDOTOOL_TIMEOUT = 10
-MODEL_SIZE_DEFAULT = 'small'
+MODEL_SIZE_DEFAULT = 'medium'
 MODEL_CHOICES = ['tiny', 'base', 'small', 'medium', 'large']
 
 warnings.filterwarnings("ignore", message="FP16 is not supported on CPU")
