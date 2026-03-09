@@ -200,7 +200,7 @@ class AudioTranscriber:
                 beam_size=3,
                 temperature=0.1,
                 condition_on_previous_text=CONDITION_ON_PREVIOUS,
-                initial_prompt=initial_prompt,
+                initial_prompt=None,
                 prefix=None,
             )
             text_other = result_other["text"].strip()
@@ -223,7 +223,7 @@ class AudioTranscriber:
                 beam_size=BEAM_SIZE,
                 temperature=0.1,
                 condition_on_previous_text=CONDITION_ON_PREVIOUS,
-                initial_prompt=initial_prompt,
+                initial_prompt=None,
                 prefix=None,
             )
             text_en = result_en["text"].strip()
