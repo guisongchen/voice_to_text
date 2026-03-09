@@ -122,26 +122,27 @@ voice-to-text --keep-audio
 ✅ 自动清理过时套接字
 ✅ 更好的错误处理
 
+### 线程安全
+
+所有共享状态均使用适当的同步机制保护：
+✅ **互斥锁保护的标志** - `stop_signal` 和 `should_exit` 使用 `threading.Lock`
+✅ **线程安全的音频录制器** - 录制状态和帧缓冲区受锁保护
+✅ **可重入的清理** - 使用清理标志防止资源重复释放
+✅ **基于超时的线程合并** - 所有线程 join 操作都有超时，防止死锁
+
 
 ## 项目结构
 
 ```
 voice_to_text/
-├── cli/
-│   └── voice_to_text_cli.py      # CLI 入口点
-├── core/
-│   ├── audio_feedback.py         # 音频提示反馈
-│   ├── audio_service.py          # 录制功能
-│   ├── config.py                 # 配置
-│   └── text_inserter.py          # 通过 xdotool 插入文本
-├── modes/
-│   ├── base_mode.py              # 基础模式类
-│   └── socket_mode.py            # 基于套接字的 IPC 模式
-├── services/
-│   ├── dependency_container.py   # 依赖注入
-│   └── voice_to_text_service.py  # 主服务协调器
-└── transcribe.py                 # Whisper 转录
+├── voice_to_text.py              # 主服务（包含录制器、转录器和 IPC）
+├── voice_to_text_toggle.py       # 键盘快捷键的开关脚本
+├── README.md                     # 英文文档
+├── README_zh.md                  # 中文文档
+└── pyproject.toml                # 包配置
 ```
+
+代码库有意保持精简 - 所有核心功能整合到两个文件中，便于维护。
 
 ## 故障排除
 

@@ -215,11 +215,24 @@ class AudioRecorder:
 
     def __init__(self):
         self.audio = pyaudio.PyAudio()
-        self.is_recording = False
+        self._lock = threading.Lock()
+        self._is_recording = False
         self._thread = None
         self._stream = None
         self._frames = []
         self._output_path = None
+        self._cleaned_up = False
+
+    @property
+    def is_recording(self):
+        """Thread-safe access to recording state."""
+        with self._lock:
+            return self._is_recording
+
+    def _set_recording(self, value):
+        """Thread-safe modification of recording state."""
+        with self._lock:
+            self._is_recording = value
 
     def start(self):
         """Start recording in background thread."""
@@ -227,8 +240,9 @@ class AudioRecorder:
             return self._output_path
 
         fd, self._output_path = tempfile.mkstemp(suffix='.wav', prefix='vtt_')
-        self.is_recording = True
-        self._frames = []
+        with self._lock:
+            self._is_recording = True
+            self._frames = []
         self._thread = threading.Thread(target=self._record, daemon=True)
         self._thread.start()
         return self._output_path
@@ -244,10 +258,14 @@ class AudioRecorder:
                 frames_per_buffer=CHUNK_SIZE
             )
 
-            while self.is_recording:
+            while True:
+                with self._lock:
+                    if not self._is_recording:
+                        break
                 try:
                     data = self._stream.read(CHUNK_SIZE, exception_on_overflow=False)
-                    self._frames.append(data)
+                    with self._lock:
+                        self._frames.append(data)
                 except Exception as e:
                     print(f"  Recording error: {e}")
                     break
@@ -263,18 +281,21 @@ class AudioRecorder:
 
     def _save_wav(self):
         """Save frames to WAV file."""
+        with self._lock:
+            frames_copy = b''.join(self._frames)
         with wave.open(self._output_path, 'wb') as wf:
             wf.setnchannels(CHANNELS)
             wf.setsampwidth(self.audio.get_sample_size(pyaudio.paInt16))
             wf.setframerate(SAMPLE_RATE)
-            wf.writeframes(b''.join(self._frames))
+            wf.writeframes(frames_copy)
 
     def stop(self):
         """Stop recording and return path to audio file."""
         if not self.is_recording:
             return None
 
-        self.is_recording = False
+        with self._lock:
+            self._is_recording = False
         if self._thread:
             self._thread.join(timeout=3.0)
 
@@ -282,7 +303,12 @@ class AudioRecorder:
 
     def cleanup(self):
         """Clean up resources."""
-        self.is_recording = False
+        with self._lock:
+            if self._cleaned_up:
+                return
+            self._cleaned_up = True
+            self._is_recording = False
+
         if self._stream:
             try:
                 self._stream.stop_stream()
@@ -291,6 +317,7 @@ class AudioRecorder:
                 pass
         if self.audio:
             self.audio.terminate()
+            self.audio = None
 
 
 class BeepPlayer:
@@ -434,10 +461,37 @@ class VoiceToTextService:
         self.keep_audio = keep_audio
         self.socket_path = Path(SOCKET_PATH)
         self.server_socket = None
-        self.should_exit = False
-        self.stop_signal = False
+        self._lock = threading.Lock()
+        self._should_exit = False
+        self._stop_signal = False
+        self._init_components(model_size)
 
-        # Components
+    @property
+    def should_exit(self):
+        """Thread-safe access to should_exit flag."""
+        with self._lock:
+            return self._should_exit
+
+    @should_exit.setter
+    def should_exit(self, value):
+        """Thread-safe modification of should_exit flag."""
+        with self._lock:
+            self._should_exit = value
+
+    @property
+    def stop_signal(self):
+        """Thread-safe access to stop_signal flag."""
+        with self._lock:
+            return self._stop_signal
+
+    @stop_signal.setter
+    def stop_signal(self, value):
+        """Thread-safe modification of stop_signal flag."""
+        with self._lock:
+            self._stop_signal = value
+
+    def _init_components(self, model_size):
+        """Initialize components - called from __init__."""
         self.recorder = AudioRecorder()
         self.beep = BeepPlayer()
         self.transcriber = AudioTranscriber(model_size)
@@ -504,8 +558,10 @@ class VoiceToTextService:
 
         # Setup signal handlers
         import signal
-        signal.signal(signal.SIGINT, lambda s, f: setattr(self, 'should_exit', True))
-        signal.signal(signal.SIGTERM, lambda s, f: setattr(self, 'should_exit', True))
+        def _signal_handler(signum, frame):
+            self._should_exit = True
+        signal.signal(signal.SIGINT, _signal_handler)
+        signal.signal(signal.SIGTERM, _signal_handler)
 
         # Start socket listener
         listener_thread = threading.Thread(target=self._socket_listener, daemon=True)

@@ -117,30 +117,31 @@ Audio files are saved in `/tmp/` with timestamps.
 ### Safety Features
 
 The tool uses Unix domain sockets for inter-process communication, which provides:
-✅ Reliable message delivery with ACK  
-✅ Atomic socket operations  
-✅ Automatic cleanup of stale sockets  
-✅ Better error handling  
+✅ Reliable message delivery with ACK
+✅ Atomic socket operations
+✅ Automatic cleanup of stale sockets
+✅ Better error handling
+
+### Thread Safety
+
+All shared state is protected with proper synchronization:
+✅ **Mutex-protected flags** - `stop_signal` and `should_exit` use `threading.Lock`
+✅ **Thread-safe audio recorder** - Recording state and frame buffers are lock-protected
+✅ **Reentrant cleanup** - Prevents double-free of resources with cleanup flags
+✅ **Timeout-based joins** - All thread joins have timeouts to prevent deadlocks  
 
 ## Project Structure
 
 ```
 voice_to_text/
-├── cli/
-│   └── voice_to_text_cli.py      # CLI entry point
-├── core/
-│   ├── audio_feedback.py         # Audio beep feedback
-│   ├── audio_service.py          # Recording functionality
-│   ├── config.py                 # Configuration
-│   └── text_inserter.py          # Text insertion via xdotool
-├── modes/
-│   ├── base_mode.py              # Base mode class
-│   └── socket_mode.py            # Socket-based IPC mode
-├── services/
-│   ├── dependency_container.py   # Dependency injection
-│   └── voice_to_text_service.py  # Main service orchestrator
-└── transcribe.py                 # Whisper transcription
+├── voice_to_text.py              # Main service with recorder, transcriber, and IPC
+├── voice_to_text_toggle.py       # Toggle script for keyboard shortcuts
+├── README.md                     # English documentation
+├── README_zh.md                  # Chinese documentation
+└── pyproject.toml                # Package configuration
 ```
+
+The codebase is intentionally minimal - all core functionality is consolidated into two files for easy maintenance.
 
 ## Troubleshooting
 
