@@ -18,6 +18,7 @@ from pathlib import Path
 import numpy as np
 import pyaudio
 import torch
+import torchaudio
 import whisper
 
 # Configuration
@@ -33,7 +34,106 @@ XDOTOOL_TIMEOUT = 10
 MODEL_SIZE_DEFAULT = 'medium'
 MODEL_CHOICES = ['tiny', 'base', 'small', 'medium', 'large']
 
+# High-accuracy transcription settings
+BEAM_SIZE = 5          # Default was 1, higher = better accuracy but slower
+BEST_OF = 5            # Default was 1, number of candidates to sample
+TEMPERATURE = 0.0      # 0 = deterministic, higher = more random
+CONDITION_ON_PREVIOUS = False  # Reduce hallucination, don't condition on previous text
+
 warnings.filterwarnings("ignore", message="FP16 is not supported on CPU")
+
+
+class AudioPreprocessor:
+    """Audio preprocessing for better transcription accuracy."""
+
+    @staticmethod
+    def preprocess(audio_path):
+        """
+        Preprocess audio: convert to mono, resample to 16kHz, normalize volume.
+        Returns path to processed audio file.
+        """
+        try:
+            # Load audio
+            waveform, sample_rate = torchaudio.load(audio_path)
+
+            # Convert to mono if stereo
+            if waveform.shape[0] > 1:
+                waveform = torch.mean(waveform, dim=0, keepdim=True)
+
+            # Resample to 16kHz (Whisper's expected sample rate)
+            if sample_rate != 16000:
+                resampler = torchaudio.transforms.Resample(
+                    orig_freq=sample_rate, new_freq=16000
+                )
+                waveform = resampler(waveform)
+
+            # Normalize volume (peak normalization to -1dB)
+            peak = torch.max(torch.abs(waveform))
+            if peak > 0:
+                waveform = waveform / peak * 0.891  # -1dB = 10^(-1/20)
+
+            # Apply mild noise reduction using spectral gating
+            waveform = AudioPreprocessor._reduce_noise(waveform)
+
+            # Save processed audio
+            processed_path = audio_path.replace('.wav', '_processed.wav')
+            torchaudio.save(processed_path, waveform, 16000)
+
+            return processed_path
+
+        except Exception as e:
+            print(f"  Warning: Audio preprocessing failed ({e}), using original")
+            return audio_path
+
+    @staticmethod
+    def _reduce_noise(waveform, n_fft=2048, hop_length=512, noise_reduction=0.7):
+        """Simple spectral gating noise reduction."""
+        try:
+            # Convert to numpy for processing
+            audio_np = waveform.squeeze().numpy()
+
+            # Compute STFT
+            stft = torch.stft(
+                waveform.squeeze(),
+                n_fft=n_fft,
+                hop_length=hop_length,
+                return_complex=True
+            )
+
+            # Estimate noise floor from first 100ms (assumed silence)
+            noise_samples = min(int(0.1 * 16000), len(audio_np) // 10)
+            if noise_samples > n_fft:
+                noise_stft = stft[:, :max(1, noise_samples // hop_length)]
+                noise_floor = torch.mean(torch.abs(noise_stft), dim=1, keepdim=True)
+            else:
+                # Use median as noise floor estimate
+                noise_floor = torch.median(torch.abs(stft), dim=1, keepdim=True)[0]
+
+            # Spectral gating: attenuate frequencies below noise floor
+            magnitude = torch.abs(stft)
+            phase = torch.angle(stft)
+
+            # Soft mask based on signal-to-noise ratio
+            mask = torch.clamp((magnitude - noise_reduction * noise_floor) / (magnitude + 1e-10), 0, 1)
+            mask = mask ** 0.5  # Soften the mask
+
+            # Apply mask and reconstruct
+            cleaned_magnitude = magnitude * mask
+            cleaned_stft = cleaned_magnitude * torch.exp(1j * phase)
+
+            # Inverse STFT
+            cleaned = torch.istft(
+                cleaned_stft,
+                n_fft=n_fft,
+                hop_length=hop_length,
+                length=len(audio_np)
+            )
+
+            return cleaned.unsqueeze(0)
+
+        except Exception:
+            # If noise reduction fails, return original
+            return waveform
 
 
 class AudioTranscriber:
@@ -63,32 +163,45 @@ class AudioTranscriber:
         return self._model
 
     def transcribe(self, audio_path):
-        """Transcribe audio file to text."""
+        """Transcribe audio file to text with high accuracy settings."""
         model = self.wait_for_ready()
+
+        # First pass: auto-detect language with high-quality settings
         result = model.transcribe(
             str(audio_path),
             verbose=False,
             language=None,
             task='transcribe',
             fp16=True,
-            best_of=1,
-            beam_size=1
+            best_of=BEST_OF,
+            beam_size=BEAM_SIZE,
+            temperature=TEMPERATURE,
+            condition_on_previous_text=CONDITION_ON_PREVIOUS,
+            no_speech_threshold=0.6,
+            compression_ratio_threshold=2.4,
         )
         text = result["text"].strip()
-
-        # Retranscribe as English if not English/Chinese
         detected = result.get("language", "unknown")
-        if detected not in ['en', 'zh']:
-            result = model.transcribe(
+
+        # For better accuracy on non-English/Chinese, re-transcribe with English
+        if detected not in ['en', 'zh'] and detected != 'unknown' and text:
+            result_en = model.transcribe(
                 str(audio_path),
                 verbose=False,
                 language='en',
                 task='transcribe',
                 fp16=True,
-                best_of=1,
-                beam_size=1
+                best_of=BEST_OF,
+                beam_size=BEAM_SIZE,
+                temperature=TEMPERATURE,
+                condition_on_previous_text=CONDITION_ON_PREVIOUS,
             )
-            text = result["text"].strip()
+            text_en = result_en["text"].strip()
+
+            # Use the longer/more confident result
+            if len(text_en) > len(text) * 0.8:
+                text = text_en
+                detected = 'en'
 
         return text
 
@@ -430,18 +543,23 @@ class VoiceToTextService:
         return 0
 
     def _transcribe_and_insert(self, audio_file):
-        """Transcribe audio and insert text."""
+        """Transcribe audio and insert text with preprocessing."""
         if not audio_file or not Path(audio_file).exists():
             print("  ✗ Error: Audio file not found")
             return
 
-        print("🔄 Transcribing...")
-
+        processed_file = None
         try:
-            text = self.transcriber.transcribe(audio_file)
+            # Preprocess audio for better accuracy
+            print("🔄 Preprocessing audio...")
+            processed_file = AudioPreprocessor.preprocess(audio_file)
+
+            print("🔄 Transcribing...")
+            text = self.transcriber.transcribe(processed_file)
 
             if not text:
                 print("  ⚠ No speech detected")
+                self._cleanup(audio_file, processed_file)
                 return
 
             preview = text[:80] + "..." if len(text) > 80 else text
@@ -456,10 +574,10 @@ class VoiceToTextService:
         except Exception as e:
             print(f"  ✗ Transcription error: {e}")
         finally:
-            self._cleanup(audio_file)
+            self._cleanup(audio_file, processed_file)
 
-    def _cleanup(self, audio_file):
-        """Clean up audio file."""
+    def _cleanup(self, audio_file, processed_file=None):
+        """Clean up audio files."""
         if audio_file and not self.keep_audio:
             try:
                 Path(audio_file).unlink(missing_ok=True)
@@ -467,6 +585,12 @@ class VoiceToTextService:
                 pass
         elif audio_file:
             print(f"  Audio saved: {audio_file}")
+
+        if processed_file and not self.keep_audio:
+            try:
+                Path(processed_file).unlink(missing_ok=True)
+            except:
+                pass
 
     def cleanup(self):
         """Clean up all resources."""
