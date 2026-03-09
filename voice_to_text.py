@@ -179,6 +179,8 @@ class AudioTranscriber:
             condition_on_previous_text=CONDITION_ON_PREVIOUS,
             no_speech_threshold=0.6,
             compression_ratio_threshold=2.4,
+            initial_prompt=None,
+            prefix=None,
         )
         text = result["text"].strip()
         detected = result.get("language", "unknown")
@@ -195,6 +197,8 @@ class AudioTranscriber:
                 beam_size=BEAM_SIZE,
                 temperature=TEMPERATURE,
                 condition_on_previous_text=CONDITION_ON_PREVIOUS,
+                initial_prompt=None,
+                prefix=None,
             )
             text_en = result_en["text"].strip()
 
