@@ -40,14 +40,6 @@ BEST_OF = 5            # Default was 1, number of candidates to sample
 TEMPERATURE = 0.0      # 0 = deterministic, higher = more random
 CONDITION_ON_PREVIOUS = False  # Reduce hallucination, don't condition on previous text
 
-# Prompt for mixed Chinese-English transcription
-# This helps Whisper understand that input may contain both languages
-MIXED_LANG_PROMPT = (
-    "这是一段可能包含中文和English混合的语音，"
-    "speaker可能会说一些technical terms或者专业术语。"
-    "Please transcribe all speech accurately."
-)
-
 warnings.filterwarnings("ignore", message="FP16 is not supported on CPU")
 
 
@@ -174,9 +166,6 @@ class AudioTranscriber:
         """Transcribe audio file to text with high accuracy settings."""
         model = self.wait_for_ready()
 
-        # Use mixed language prompt for better Chinese-English transcription
-        initial_prompt = MIXED_LANG_PROMPT
-
         # First pass: auto-detect language with high-quality settings
         # Use higher temperature for mixed language to allow flexibility
         result = model.transcribe(
@@ -191,7 +180,7 @@ class AudioTranscriber:
             condition_on_previous_text=CONDITION_ON_PREVIOUS,
             no_speech_threshold=0.6,
             compression_ratio_threshold=2.4,
-            initial_prompt=initial_prompt,
+            initial_prompt=None,  # Don't use prompt for language detection
             prefix=None,
         )
         text = result["text"].strip()
