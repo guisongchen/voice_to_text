@@ -166,74 +166,23 @@ class AudioTranscriber:
         """Transcribe audio file to text with high accuracy settings."""
         model = self.wait_for_ready()
 
-        # First pass: auto-detect language with high-quality settings
-        # Use higher temperature for mixed language to allow flexibility
+        # Auto-detect language and transcribe
         result = model.transcribe(
             str(audio_path),
             verbose=False,
-            language=None,
+            language=None,  # Auto-detect
             task='transcribe',
             fp16=True,
             best_of=BEST_OF,
             beam_size=BEAM_SIZE,
-            temperature=0.1,  # Slightly higher for mixed language flexibility
+            temperature=0.0,
             condition_on_previous_text=CONDITION_ON_PREVIOUS,
             no_speech_threshold=0.6,
             compression_ratio_threshold=2.4,
-            initial_prompt=None,  # Don't use prompt for language detection
-            prefix=None,
+            initial_prompt=None,
         )
-        text = result["text"].strip()
-        detected = result.get("language", "unknown")
 
-        # For mixed Chinese-English, try both zh and en explicitly
-        if detected in ['zh', 'en'] and text:
-            # Try the other language to see if we get better results
-            other_lang = 'en' if detected == 'zh' else 'zh'
-            result_other = model.transcribe(
-                str(audio_path),
-                verbose=False,
-                language=other_lang,
-                task='transcribe',
-                fp16=True,
-                best_of=3,  # Lower for speed since we already have a result
-                beam_size=3,
-                temperature=0.1,
-                condition_on_previous_text=CONDITION_ON_PREVIOUS,
-                initial_prompt=None,
-                prefix=None,
-            )
-            text_other = result_other["text"].strip()
-
-            # Use the result with more content (usually more accurate)
-            # or combine if they complement each other
-            if len(text_other) > len(text) * 1.2:
-                text = text_other
-                detected = other_lang
-
-        # For other detected languages, try English as fallback
-        elif detected not in ['en', 'zh'] and detected != 'unknown' and text:
-            result_en = model.transcribe(
-                str(audio_path),
-                verbose=False,
-                language='en',
-                task='transcribe',
-                fp16=True,
-                best_of=BEST_OF,
-                beam_size=BEAM_SIZE,
-                temperature=0.1,
-                condition_on_previous_text=CONDITION_ON_PREVIOUS,
-                initial_prompt=None,
-                prefix=None,
-            )
-            text_en = result_en["text"].strip()
-
-            # Use the longer/more confident result
-            if len(text_en) > len(text) * 0.8:
-                text = text_en
-                detected = 'en'
-
-        return text
+        return result["text"].strip()
 
 
 class AudioRecorder:
