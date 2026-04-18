@@ -100,13 +100,33 @@ class AudioPreprocessor:
                 return_complex=True
             )
 
-            # Estimate noise floor from first 100ms (assumed silence)
-            noise_samples = min(int(0.1 * 16000), len(audio_np) // 10)
-            if noise_samples > n_fft:
-                noise_stft = stft[:, :max(1, noise_samples // hop_length)]
-                noise_floor = torch.mean(torch.abs(noise_stft), dim=1, keepdim=True)
+            # Estimate noise floor from quietest segments
+            # Don't assume leading silence — user may start speaking immediately
+            window_size = int(0.05 * 16000)  # 50ms windows
+            hop_size = window_size // 2
+            num_windows = max(1, (len(audio_np) - window_size) // hop_size + 1)
+
+            energies = np.array([
+                np.sum(audio_np[i * hop_size:i * hop_size + window_size] ** 2)
+                for i in range(num_windows)
+            ])
+
+            # Use quietest 10% of windows for noise estimation
+            quietest_count = max(1, num_windows // 10)
+            quietest_indices = np.argsort(energies)[:quietest_count]
+
+            cols_per_window = window_size // hop_length
+            hop_cols = hop_size // hop_length
+            noise_cols = []
+            for idx in quietest_indices:
+                start = idx * hop_cols
+                end = start + cols_per_window
+                noise_cols.extend(range(start, min(end, stft.shape[1])))
+
+            if noise_cols:
+                noise_floor = torch.mean(torch.abs(stft[:, noise_cols]), dim=1, keepdim=True)
             else:
-                # Use median as noise floor estimate
+                # Fallback: median across all time frames
                 noise_floor = torch.median(torch.abs(stft), dim=1, keepdim=True)[0]
 
             # Spectral gating: attenuate frequencies below noise floor
@@ -544,14 +564,14 @@ class VoiceToTextService:
 
         time.sleep(0.3)
 
-        # Start recording
-        self.beep.open_stream()
-        self.beep.play_start()
-        time.sleep(0.02)
-
+        # Start recording BEFORE playing beep, so speech during/after beep is captured
         audio_file = self.recorder.start()
         start_time = time.time()
         print("\nRecording... ", end='', flush=True)
+
+        time.sleep(0.02)
+        self.beep.open_stream()
+        self.beep.play_start()
 
         # Wait for stop signal
         try:
