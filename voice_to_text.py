@@ -5,6 +5,7 @@ Records audio and inserts transcribed text at cursor position.
 """
 
 import argparse
+import os
 import socket
 import subprocess
 import sys
@@ -217,6 +218,8 @@ class AudioRecorder:
         self._frames = []
         self._output_path = None
         self._cleaned_up = False
+        self._ready = threading.Event()
+        self._start_error = None
 
     @property
     def is_recording(self):
@@ -235,11 +238,28 @@ class AudioRecorder:
             return self._output_path
 
         fd, self._output_path = tempfile.mkstemp(suffix='.wav', prefix='vtt_')
+        os.close(fd)
+        Path(self._output_path).unlink(missing_ok=True)
         with self._lock:
             self._is_recording = True
             self._frames = []
+        self._ready.clear()
+        self._start_error = None
         self._thread = threading.Thread(target=self._record, daemon=True)
         self._thread.start()
+
+        if not self._ready.wait(timeout=2.0):
+            with self._lock:
+                self._is_recording = False
+            raise RuntimeError("Timed out waiting for audio recorder to start")
+
+        if self._start_error:
+            with self._lock:
+                self._is_recording = False
+            if self._thread:
+                self._thread.join(timeout=1.0)
+            raise RuntimeError(f"Failed to start audio recorder: {self._start_error}")
+
         return self._output_path
 
     def _record(self):
@@ -252,6 +272,12 @@ class AudioRecorder:
                 input=True,
                 frames_per_buffer=CHUNK_SIZE
             )
+
+            first_chunk = self._stream.read(CHUNK_SIZE, exception_on_overflow=False)
+            with self._lock:
+                if self._is_recording:
+                    self._frames.append(first_chunk)
+            self._ready.set()
 
             while True:
                 with self._lock:
@@ -272,6 +298,8 @@ class AudioRecorder:
                 self._save_wav()
 
         except Exception as e:
+            self._start_error = e
+            self._ready.set()
             print(f"  Recording failed: {e}")
 
     def _save_wav(self):
