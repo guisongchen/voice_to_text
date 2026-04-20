@@ -213,8 +213,7 @@ def main():
         except PermissionError:
             print(
                 "ERROR: Permission denied accessing the input device.\n"
-                "  Fix: sudo usermod -aG input $USER  (then log out and back in)\n"
-                "  Or run this script with sudo.",
+                "  Fix: sudo usermod -aG input $USER  (then log out and back in)",
                 file=sys.stderr,
             )
             return 1
