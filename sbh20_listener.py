@@ -15,6 +15,7 @@ Run with --debug to discover the exact keycodes your SBH20 sends.
 """
 
 import argparse
+import glob
 import os
 import subprocess
 import sys
@@ -72,6 +73,33 @@ def is_sbh20_connected():
     return "boolean true" in result.stdout
 
 
+def get_x11_env():
+    """Discover X11 environment (DISPLAY, XAUTHORITY) for xdotool."""
+    env = os.environ.copy()
+
+    if "DISPLAY" not in env:
+        env["DISPLAY"] = ":1"
+
+    if "XAUTHORITY" not in env:
+        uid = os.getuid()
+        home = os.path.expanduser("~")
+        candidates = [
+            f"/run/user/{uid}/gdm/Xauthority",
+            f"/run/user/{uid}/.mutter-Xwaylandauth.*",
+            os.path.join(home, ".Xauthority"),
+        ]
+        for pattern in candidates:
+            paths = glob.glob(pattern) if "*" in pattern else [pattern]
+            for path in paths:
+                if os.path.exists(path):
+                    env["XAUTHORITY"] = path
+                    break
+            if "XAUTHORITY" in env:
+                break
+
+    return env
+
+
 def ensure_audio_setup():
     """Force SBH20 to A2DP so evdev button events remain available."""
     try:
@@ -86,11 +114,7 @@ def ensure_audio_setup():
 
 def inject_key(cmd, description):
     """Run xdotool to inject a key sequence (non-blocking)."""
-    env = os.environ.copy()
-    # Preserve X11 context so xdotool can talk to the display server
-    for key in ("DISPLAY", "XAUTHORITY"):
-        if key in os.environ:
-            env[key] = os.environ[key]
+    env = get_x11_env()
     subprocess.Popen(
         cmd,
         stdout=subprocess.DEVNULL,

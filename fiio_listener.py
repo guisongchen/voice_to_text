@@ -5,6 +5,8 @@ Monitors the AVRCP input device at the kernel evdev level (bypasses X11/HFP),
 and triggers voice_to_text_toggle.py on button press.
 """
 
+import glob
+import os
 import subprocess
 import sys
 import time
@@ -17,6 +19,33 @@ DEVICE_NAME_PATTERN = "FiiO"
 # X11 keycode - 8 = evdev code. FiiO sends X11 208/209, so evdev 200/201.
 # But evdev codes depend on the kernel driver; discover them at runtime.
 TRIGGER_KEYCODES = None  # discovered on first event
+
+
+def get_x11_env():
+    """Discover X11 environment (DISPLAY, XAUTHORITY) for xdotool."""
+    env = os.environ.copy()
+
+    if "DISPLAY" not in env:
+        env["DISPLAY"] = ":1"
+
+    if "XAUTHORITY" not in env:
+        uid = os.getuid()
+        home = os.path.expanduser("~")
+        candidates = [
+            f"/run/user/{uid}/gdm/Xauthority",
+            f"/run/user/{uid}/.mutter-Xwaylandauth.*",
+            os.path.join(home, ".Xauthority"),
+        ]
+        for pattern in candidates:
+            paths = glob.glob(pattern) if "*" in pattern else [pattern]
+            for path in paths:
+                if os.path.exists(path):
+                    env["XAUTHORITY"] = path
+                    break
+            if "XAUTHORITY" in env:
+                break
+
+    return env
 
 
 def find_fiio_device():
@@ -37,9 +66,11 @@ def find_fiio_device():
 
 def run_toggle():
     """Run the toggle script in a subprocess (non-blocking)."""
+    env = get_x11_env()
     subprocess.Popen(
         [sys.executable, str(TOGGLE_SCRIPT)],
         start_new_session=True,
+        env=env,
     )
 
 
