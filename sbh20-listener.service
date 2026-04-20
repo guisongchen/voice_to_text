@@ -1,0 +1,15 @@
+[Unit]
+Description=SBH20 button listener for keyboard mapping
+After=graphical-session.target bluetooth.target
+
+[Service]
+ExecStart=/home/ccc/projects/voice_to_text/.venv/bin/python3 /home/ccc/projects/voice_to_text/sbh20_listener.py
+Restart=on-failure
+RestartSec=3
+Environment=DISPLAY=:1
+Environment=PYTHONUNBUFFERED=1
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
