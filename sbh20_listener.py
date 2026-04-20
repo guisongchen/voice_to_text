@@ -3,8 +3,13 @@
 
 Maps SBH20 Bluetooth headset buttons to keyboard shortcuts via xdotool:
   - Play/Pause  -> Alt+R
-  - Volume Up   -> Shift
-  - Volume Down -> Return (Enter)
+  - Volume Up   -> Enter
+  - Volume Down -> Shift
+
+Forces A2DP profile on connection — this keeps button events visible via
+evdev. HFP/HSP cannot be used simultaneously because BlueZ intercepts
+button events in headset mode. Use a separate USB microphone for
+voice-to-text while wearing the SBH20.
 
 Run with --debug to discover the exact keycodes your SBH20 sends.
 """
@@ -20,6 +25,9 @@ from evdev import InputDevice, ecodes, list_devices
 SBH20_MAC = "4C:21:D0:9D:E8:10"
 DEVICE_NAME_PATTERN = "SBH20"
 DEBOUNCE_MS = 0.3  # seconds — SBH20 sends PLAYCD+PAUSECD on one press
+
+SBH20_CARD = "bluez_card.4C_21_D0_9D_E8_10"
+SBH20_A2DP_PROFILE = "a2dp-sink"
 
 # Default mapping based on SBH20 AVRCP capabilities.
 # Run --debug to verify actual codes, then override with --map if needed.
@@ -62,6 +70,18 @@ def is_sbh20_connected():
         text=True,
     )
     return "boolean true" in result.stdout
+
+
+def ensure_audio_setup():
+    """Force SBH20 to A2DP so evdev button events remain available."""
+    try:
+        subprocess.run(
+            ["pactl", "set-card-profile", SBH20_CARD, SBH20_A2DP_PROFILE],
+            check=True, capture_output=True,
+        )
+        print(f"SBH20 set to A2DP profile ({SBH20_A2DP_PROFILE})")
+    except subprocess.CalledProcessError as e:
+        print(f"Warning: could not set SBH20 profile: {e.stderr.decode().strip()}")
 
 
 def inject_key(cmd, description):
@@ -161,6 +181,7 @@ def main():
             return 1
 
         print(f"Found: {device.name} at {device.path}")
+        ensure_audio_setup()
 
         try:
             device.grab()
