@@ -1,0 +1,21 @@
+[Unit]
+Description=LP998 touch zone listener
+After=bluetooth.target
+
+[Service]
+Type=simple
+ExecStart=%h/projects/voice_to_text/.venv/bin/python3 %h/projects/voice_to_text/lp998_listener.py
+Restart=on-failure
+RestartSec=5
+StartLimitBurst=5
+StartLimitIntervalSec=30
+NoNewPrivileges=true
+ProtectSystem=strict
+PrivateTmp=true
+PrivateDevices=false
+ProtectHome=read-only
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
