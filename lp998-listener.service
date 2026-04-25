@@ -1,6 +1,6 @@
 [Unit]
 Description=LP998 touch zone listener
-After=bluetooth.target
+After=graphical-session.target bluetooth.target
 
 [Service]
 Type=simple
@@ -9,6 +9,7 @@ Restart=on-failure
 RestartSec=5
 StartLimitBurst=5
 StartLimitIntervalSec=30
+Environment=PYTHONUNBUFFERED=1
 NoNewPrivileges=true
 ProtectSystem=strict
 PrivateTmp=true

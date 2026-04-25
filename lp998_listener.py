@@ -24,6 +24,8 @@ MAC = "5C:08:19:C2:4D:AF"
 DEVICE_NAME_PATTERN = "LP998"
 
 ZONE_THRESHOLD = 75
+TOUCH_DEBOUNCE_SECONDS = 0.12
+CC_DEBOUNCE_SECONDS = 0.2
 
 ZONES = [
     {"name": "ring_top",    "center": (500, 350), "cmd": ["xdotool", "key", "Up"],             "desc": "Ring Top -> Up"},
@@ -34,15 +36,13 @@ ZONES = [
     {"name": "left_button", "center": (512, 833), "cmd": ["xdotool", "key", "BackSpace"],      "desc": "Left Button -> Backspace"},
 ]
 
-CC_DEBOUNCE_SECONDS = 0.2
-
 CC_KEY_MAP = {
     114: (["xdotool", "key", "Return"], "Right Button -> Enter", "right_button"),
     115: (["xdotool", "key", "Return"], "Right Button -> Enter", "right_button"),
 }
 
-CC_LAST_INJECTED_AT = {}
-CC_DEBOUNCE_LOCK = threading.Lock()
+ACTION_LAST_INJECTED_AT = {}
+ACTION_DEBOUNCE_LOCK = threading.Lock()
 
 
 def find_lp998_devices():
@@ -117,6 +117,17 @@ def inject_keys(cmd, description):
     print(f"Injected: {description}")
 
 
+def debounce_action(debounce_key, debounce_seconds):
+    """Return elapsed time if action should be suppressed, else None."""
+    now = time.monotonic()
+    with ACTION_DEBOUNCE_LOCK:
+        previous = ACTION_LAST_INJECTED_AT.get(debounce_key)
+        if previous is not None and now - previous < debounce_seconds:
+            return now - previous
+        ACTION_LAST_INJECTED_AT[debounce_key] = now
+    return None
+
+
 def match_zone(x, y):
     """Find closest matching zone by Euclidean distance."""
     best = None
@@ -147,17 +158,14 @@ def consume_cc_events(device, debug=False):
             mapping = CC_KEY_MAP.get(event.code)
             if mapping:
                 cmd, description, debounce_key = mapping
-                now = time.monotonic()
-                with CC_DEBOUNCE_LOCK:
-                    previous = CC_LAST_INJECTED_AT.get(debounce_key)
-                    if previous is not None and now - previous < CC_DEBOUNCE_SECONDS:
-                        if debug:
-                            print(
-                                f"[debug] CC suppressed: {description} "
-                                f"(code={event.code}, dt={now - previous:.3f}s)"
-                            )
-                        continue
-                    CC_LAST_INJECTED_AT[debounce_key] = now
+                elapsed = debounce_action(debounce_key, CC_DEBOUNCE_SECONDS)
+                if elapsed is not None:
+                    if debug:
+                        print(
+                            f"[debug] CC suppressed: {description} "
+                            f"(code={event.code}, dt={elapsed:.3f}s)"
+                        )
+                    continue
                 inject_keys(cmd, description)
     except OSError:
         pass
@@ -201,6 +209,16 @@ def listen_touch_events(device, debug=False):
                     if touch_x is not None and touch_y is not None:
                         zone, dist = match_zone(touch_x, touch_y)
                         if zone:
+                            elapsed = debounce_action(zone["name"], TOUCH_DEBOUNCE_SECONDS)
+                            if elapsed is not None:
+                                if debug:
+                                    print(
+                                        f"[debug] Touch suppressed: {zone['name']} "
+                                        f"(dt={elapsed:.3f}s)"
+                                    )
+                                tracking_active = False
+                                cur = empty_touch()
+                                continue
                             if debug:
                                 print(
                                     "[debug] Matched touch: "
