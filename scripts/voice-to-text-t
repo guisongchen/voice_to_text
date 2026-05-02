@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/home/ccc/projects/voice_to_text/.venv/bin/python3
 """Thin wrapper — delegates to voice_to_text.toggle.main()"""
 import sys
 from pathlib import Path
