@@ -1,5 +1,6 @@
 from .service import VoiceToTextService
-from .audio import AudioRecorder, AudioPreprocessor, BeepPlayer
+from .recorder import AudioRecorder
+from .audio import AudioPreprocessor, BeepPlayer
 from .transcriber import AudioTranscriber
 from .inserter import TextInserter
 from .cli import main

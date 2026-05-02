@@ -5,10 +5,9 @@ import threading
 import time
 from pathlib import Path
 
-from .audio import AudioRecorder, AudioPreprocessor
 from .config import SOCKET_PATH
 from .inserter import TextInserter
-from .transcriber import AudioTranscriber
+from .recorder import AudioRecorder  # lightweight — no torch/numpy imports
 
 
 class VoiceToTextService:
@@ -23,7 +22,13 @@ class VoiceToTextService:
         self._should_exit = False
         self._stop_signal = False
         self._active_window = None
-        self._init_components(model_size)
+        self.recorder = AudioRecorder()
+        self._transcriber = None
+        self._preprocessor = None
+        self._model_error = None
+
+        # Start model loading in background AFTER recorder is ready
+        threading.Thread(target=self._load_model, daemon=True).start()
 
     @property
     def should_exit(self):
@@ -45,9 +50,13 @@ class VoiceToTextService:
         with self._lock:
             self._stop_signal = value
 
-    def _init_components(self, model_size):
-        self.recorder = AudioRecorder()
-        self.transcriber = AudioTranscriber(model_size)
+    def _load_model(self):
+        """Load heavy ML modules in background thread."""
+        try:
+            from .transcriber import AudioTranscriber
+            self._transcriber = AudioTranscriber(self.model_size)
+        except Exception as e:
+            self._model_error = e
 
     def initialize(self):
         print("=" * 50)
@@ -63,11 +72,6 @@ class VoiceToTextService:
 
         print(f"\n[2/2] Loading Qwen3-ASR model '{self.model_size}'...")
         print("✓ Model loading in background")
-
-        if self.keep_audio:
-            print("\n" + "=" * 50)
-            print("DIAGNOSTIC MODE: Audio files will be preserved")
-            print("=" * 50)
 
         return True
 
@@ -136,6 +140,18 @@ class VoiceToTextService:
         self._transcribe_and_insert(audio_file)
         return 0
 
+    def _wait_for_model(self, timeout=120):
+        """Wait for model loading to complete. Returns AudioTranscriber wrapper."""
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if self._transcriber is not None:
+                self._transcriber.wait_for_ready(timeout=timeout)
+                return self._transcriber
+            if self._model_error:
+                raise self._model_error
+            time.sleep(0.5)
+        raise RuntimeError(f"Model loading timed out after {timeout}s")
+
     def _transcribe_and_insert(self, audio_file):
         if not audio_file or not Path(audio_file).exists():
             print("  ✗ Error: Audio file not found")
@@ -144,11 +160,14 @@ class VoiceToTextService:
         processed_file = None
         text = None
         try:
+            from .audio import AudioPreprocessor  # lazy heavy import
+
             print("🔄 Preprocessing audio...")
             processed_file = AudioPreprocessor.preprocess(audio_file)
 
             print("🔄 Transcribing...")
-            text = self.transcriber.transcribe(processed_file)
+            model = self._wait_for_model()
+            text = model.transcribe(processed_file)
 
             if not text:
                 print("  ⚠ No speech detected")
