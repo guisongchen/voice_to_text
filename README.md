@@ -1,213 +1,106 @@
 # Voice-to-Text Input Tool
 
-A system-wide voice input tool for Linux that lets you record audio and insert transcribed text anywhere using a keyboard shortcut.
+System-wide voice input for Linux. Press a shortcut, speak, press again — transcribed text appears at your cursor.
 
 ## Features
 
-⌨️ **System-wide voice input** - Press Alt+R to record, press again to transcribe and insert text  
-🎤 **One-command workflow** - Simple toggle script for start/stop  
-📝 **Whisper AI transcription** - Accurate speech-to-text using OpenAI's Whisper  
-🚀 **GPU-accelerated** - Fast transcription with CUDA support  
-🔒 **Safe IPC** - Unix domain socket communication (no PID reuse vulnerabilities)  
-🌏 **Multi-language support** - Chinese, English, and many more languages  
+- **System-wide** — works in any application (browser, editor, terminal)
+- **Qwen3-ASR** — accurate multilingual transcription with GPU acceleration
+- **Fully offline** — model loaded from local storage, no network needed
+- **Bluetooth support** — compatible with FiiO μBTR, Sony SBH20, LP998 touch ring
+- **Safe IPC** — Unix domain socket communication
 
 ## Requirements
 
 - Python 3.10+
 - Ubuntu/Linux with X11
-- NVIDIA GPU with CUDA (recommended for fast transcription)
-- xdotool (for text insertion)
-- System audio libraries (PortAudio)
+- NVIDIA GPU with CUDA
+- xdotool (`sudo apt install xdotool`)
+- PortAudio (`sudo apt install portaudio19-dev`)
 
 ## Installation
 
-### 1. Install System Dependencies
-
 ```bash
-# Install xdotool for text insertion
-sudo apt install xdotool
-
-# Install PortAudio for audio recording
-sudo apt-get install portaudio19-dev
-```
-
-### 2. Verify CUDA Installation
-
-```bash
-nvidia-smi  # Should show your GPU
-```
-
-### 3. Install Python Package
-
-```bash
-# Clone the repository
-git clone <your-repo-url>
+git clone <repo-url>
 cd voice_to_text
 
-# Install with uv (recommended)
-uv sync  
-uv pip install .
+# Install dependencies
+uv sync
+uv pip install -e .
+
+# Copy the model to local storage
+cp -rL ~/.cache/huggingface/hub/models--Qwen--Qwen3-ASR-0.6B/snapshots/*/ models/qwen3-asr-0.6b/
 ```
 
 ## Quick Start
 
-### Desktop Shortcut Setup (Recommended)
+### Keyboard Shortcut (GNOME)
 
-Set up a keyboard shortcut for hands-free voice input:
-
-**For GNOME Desktop:**
-
-1. Open **Settings** → **Keyboard** → **Keyboard Shortcuts**
-2. Click **"+"** to add a custom shortcut
-3. Set the following:
-   - **Name**: `Voice to Text`
-   - **Command**: `/full/path/to/voice_to_text_socket_toggle.py`
-   - **Shortcut**: Press `Alt+R`
+```bash
+# Set up the shortcut
+dconf write /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/name "'voice_to_text'"
+dconf write /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/command "'/home/$USER/projects/voice_to_text/scripts/voice-to-text-t'"
+dconf write /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/binding "'<Shift><Alt>r'"
+dconf write /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings "['/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/']"
+```
 
 **Usage:**
-- Press `Alt+R` to start recording
-- Speak your text
-- Press `Alt+R` again to stop, transcribe, and insert text at cursor
+- Press `Alt+Shift+R` to start recording (hear double beep)
+- Speak
+- Press `Alt+Shift+R` again to stop, transcribe, and insert text (hear single beep)
 
+### Bluetooth / LP998 Touch Ring
 
-## How It Works
-
-1. **Press shortcut** → Recording starts (you'll hear a beep)
-2. **Speak your text** → Audio is being captured
-3. **Press shortcut again** → Recording stops (you'll hear another beep)
-4. **Transcription happens** → Whisper AI converts speech to text
-5. **Text is inserted** → Transcribed text appears at your cursor position
-
-## Configuration
-
-### Model Sizes
-
-Choose different Whisper models for speed vs. accuracy tradeoff:
+Enable systemd user services:
 
 ```bash
-# Faster but less accurate
-voice-to-text --model small
-
-# Default (balanced)
-voice-to-text --model medium
-
-# More accurate but slower
-voice-to-text --model large
+systemctl --user enable --now lp998-listener
+systemctl --user enable --now fiio-listener
+systemctl --user enable --now sbh20-listener
 ```
-
-Model sizes: `tiny`, `base`, `small`, `medium`, `large`
-
-### Keep Audio Files for Debugging
-
-```bash
-voice-to-text --keep-audio
-```
-
-Audio files are saved in `/tmp/` with timestamps.
-
-## Technical Details
-
-### Architecture
-
-- **IPC Method**: Unix domain socket (`/tmp/voice_to_text.sock`)
-- **Audio Format**: 44.1kHz, stereo, WAV
-- **Transcription**: OpenAI Whisper (GPU-accelerated)
-- **Text Insertion**: xdotool (X11)
-
-### Safety Features
-
-The tool uses Unix domain sockets for inter-process communication, which provides:
-✅ Reliable message delivery with ACK
-✅ Atomic socket operations
-✅ Automatic cleanup of stale sockets
-✅ Better error handling
-
-### Thread Safety
-
-All shared state is protected with proper synchronization:
-✅ **Mutex-protected flags** - `stop_signal` and `should_exit` use `threading.Lock`
-✅ **Thread-safe audio recorder** - Recording state and frame buffers are lock-protected
-✅ **Reentrant cleanup** - Prevents double-free of resources with cleanup flags
-✅ **Timeout-based joins** - All thread joins have timeouts to prevent deadlocks  
 
 ## Project Structure
 
 ```
 voice_to_text/
-├── voice_to_text.py              # Main service with recorder, transcriber, and IPC
-├── voice_to_text_toggle.py       # Toggle script for keyboard shortcuts
-├── README.md                     # English documentation
-├── README_zh.md                  # Chinese documentation
-└── pyproject.toml                # Package configuration
+├── src/voice_to_text/       # Python package
+│   ├── cli.py               # CLI entry point
+│   ├── config.py            # Constants
+│   ├── audio.py             # AudioRecorder, AudioPreprocessor, BeepPlayer
+│   ├── transcriber.py       # Qwen3-ASR model wrapper
+│   ├── inserter.py          # xdotool text insertion
+│   ├── service.py           # Main service with socket IPC
+│   └── toggle.py            # Start/stop toggle logic
+├── scripts/                 # Runnable entry points
+│   ├── voice-to-text-t      # Toggle (keyboard shortcut target)
+│   ├── fiio_listener.py     # FiiO μBTR button listener
+│   ├── sbh20_listener.py    # Sony SBH20 button listener
+│   └── lp998_listener.py    # LP998 touch zone listener
+├── services/                # systemd unit files
+├── models/                  # Local model files (gitignored)
+├── pyproject.toml
+└── README.md
 ```
-
-The codebase is intentionally minimal - all core functionality is consolidated into two files for easy maintenance.
 
 ## Troubleshooting
 
-### "xdotool not found"
+### Text not appearing
+- Ensure xdotool is installed: `sudo apt install xdotool`
+- Click in the target text field before pressing the shortcut
+- Check the log: `tail -f /tmp/voice_to_text.log`
+
+### Recording won't start
 ```bash
-sudo apt install xdotool
+# Clean up stale state
+rm -f /tmp/voice_to_text.sock
+# Check for stuck processes
+pgrep -af voice.to.text
 ```
 
-### "No CUDA device found"
-The tool will fall back to CPU, but it will be slower. Install NVIDIA drivers and CUDA toolkit.
+### Model loading fails
+Ensure the model is copied to `models/qwen3-asr-0.6b/`. If missing, the daemon falls back to loading from HuggingFace cache (requires `HF_HUB_OFFLINE=1` to prevent network hangs).
 
-### "Permission denied" for socket
+### Debug mode
 ```bash
-# Clean up stale socket file
-rm /tmp/voice_to_text.sock
+voice-to-text --keep-audio    # Preserve audio files in /tmp/
 ```
-
-### Recording doesn't start
-Check the log file:
-```bash
-tail -f /tmp/voice_to_text.log
-```
-
-### Text not inserting
-- Make sure xdotool is installed
-- Ensure the target window has focus
-- Try clicking in the text field before using the shortcut
-
-## Development
-
-### Run Tests
-```bash
-pytest
-```
-
-### Install in Development Mode
-```bash
-pip install -e .
-```
-
-## FAQ
-
-**Q: Does this work on Wayland?**  
-A: Currently optimized for X11. Wayland support may require additional setup.
-
-**Q: Can I use this without a GPU?**  
-A: Yes, but transcription will be slower. The tool automatically falls back to CPU.
-
-**Q: What languages are supported?**  
-A: Whisper supports many languages including English, Chinese, Spanish, French, German, Japanese, Korean, and more.
-
-**Q: Can I use a different keyboard shortcut?**  
-A: Yes! Just set a different key combination when creating the desktop shortcut.
-
-**Q: Where are the audio files stored?**  
-A: By default in `/tmp/whisper_recording_*.wav` and deleted after transcription. Use `--keep-audio` to preserve them.
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit issues or pull requests.
-
-## License
-
-[Your License Here]
-
-## Acknowledgments
-
-- [OpenAI Whisper](https://github.com/openai/whisper) for the transcription model
-- xdotool for text insertion functionality
