@@ -46,10 +46,26 @@ class AudioTranscriber:
             raise self._error
         return self._model
 
+    ALLOWED_LANGUAGES = {"english", "chinese"}
+
     def transcribe(self, audio_path):
         model = self.wait_for_ready()
+
         results = model.transcribe(
             audio=str(audio_path),
             language=None,
         )
-        return results[0].text.strip()
+
+        detected = results[0].language.lower() if results[0].language else ""
+        text = results[0].text.strip()
+
+        # If model hallucinated a wrong language, force English as fallback
+        if text and detected and detected not in self.ALLOWED_LANGUAGES:
+            print(f"  ⚠ Unexpected language '{detected}', re-transcribing as English")
+            results = model.transcribe(
+                audio=str(audio_path),
+                language="English",
+            )
+            text = results[0].text.strip()
+
+        return text
