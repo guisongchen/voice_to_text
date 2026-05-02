@@ -7,22 +7,6 @@ from pathlib import Path
 
 from .config import SOCKET_FILE, VENV_PYTHON, LOG_FILE, STOP_TIMEOUT, STARTUP_TIMEOUT
 
-MAIN_SCRIPT = Path(__file__).parent.parent.parent / "src" / "voice_to_text" / "__main__.py"
-BEEP_START = Path(__file__).parent.parent.parent / "scripts" / "beep_start.wav"
-BEEP_FINISH = Path(__file__).parent.parent.parent / "scripts" / "beep_finish.wav"
-
-
-def _play_beep(wav_path):
-    """Play a wav file asynchronously via aplay."""
-    try:
-        subprocess.Popen(
-            ["aplay", "-q", str(wav_path)],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            start_new_session=True
-        )
-    except Exception:
-        pass
-
 
 def find_processes():
     pids = []
@@ -122,9 +106,6 @@ def start_recording():
 
     starting_marker.touch()
 
-    # Play start beep immediately — before daemon startup
-    _play_beep(BEEP_START)
-
     try:
         with open(LOG_FILE, 'w') as log:
             subprocess.Popen(
@@ -148,9 +129,6 @@ def main():
 
     if daemon_running:
         print("Recording detected, sending stop command...")
-
-        # Play finish beep immediately
-        _play_beep(BEEP_FINISH)
 
         if not send_stop():
             pids = find_processes()

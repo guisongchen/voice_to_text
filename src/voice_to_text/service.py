@@ -1,6 +1,7 @@
 import shutil
 import signal
 import socket
+import subprocess
 import threading
 import time
 from pathlib import Path
@@ -8,6 +9,20 @@ from pathlib import Path
 from .config import SOCKET_PATH
 from .inserter import TextInserter
 from .recorder import AudioRecorder  # lightweight — no torch/numpy imports
+
+BEEP_START = Path(__file__).parent.parent.parent / "scripts" / "beep_start.wav"
+BEEP_FINISH = Path(__file__).parent.parent.parent / "scripts" / "beep_finish.wav"
+
+
+def _play_beep(wav_path):
+    try:
+        subprocess.Popen(
+            ["aplay", "-q", str(wav_path)],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            start_new_session=True
+        )
+    except Exception:
+        pass
 
 
 class VoiceToTextService:
@@ -122,6 +137,9 @@ class VoiceToTextService:
         start_time = time.time()
         print("\nRecording... ", end='', flush=True)
 
+        # Beep after stream is open — microphone is live
+        _play_beep(BEEP_START)
+
         try:
             while not self.stop_signal and not self.should_exit:
                 time.sleep(0.1)
@@ -131,6 +149,8 @@ class VoiceToTextService:
         self.recorder.stop()
         duration = time.time() - start_time
         print(f"\nStopped (duration: {duration:.1f}s)")
+
+        _play_beep(BEEP_FINISH)
 
         if duration < 0.5:
             print("  ⚠ Recording too short, ignoring")
