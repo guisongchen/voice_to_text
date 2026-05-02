@@ -81,6 +81,9 @@ class VoiceToTextService:
         self.server_socket.listen(1)
         self.server_socket.settimeout(1.0)
 
+        # Clear the starting sentinel — daemon is now listening
+        Path("/tmp/voice_to_text.starting").unlink(missing_ok=True)
+
         while not self.should_exit:
             try:
                 conn, _ = self.server_socket.accept()
@@ -100,7 +103,7 @@ class VoiceToTextService:
             return 1
 
         print("\n" + "=" * 50)
-        print("✓ Ready! Recording starts in 0.3 seconds")
+        print("✓ Ready — recording")
         print("  Run toggle script again to stop")
         print("=" * 50)
 
@@ -109,8 +112,6 @@ class VoiceToTextService:
 
         listener_thread = threading.Thread(target=self._socket_listener, daemon=True)
         listener_thread.start()
-
-        time.sleep(0.3)
 
         audio_file = self.recorder.start()
         self._active_window = TextInserter.get_active_window()
@@ -203,3 +204,4 @@ class VoiceToTextService:
                 self.socket_path.unlink()
             except:
                 pass
+        Path("/tmp/voice_to_text.starting").unlink(missing_ok=True)

@@ -88,6 +88,14 @@ def cleanup_stale():
 
 def start_recording():
     print("Starting recording...")
+
+    # Sentinel to prevent double-spawn on rapid double-press
+    starting_marker = Path("/tmp/voice_to_text.starting")
+    if starting_marker.exists():
+        if time.time() - starting_marker.stat().st_mtime < 3.0:
+            print("  (already starting, skipping)")
+            return True
+
     cleanup_stale()
 
     python = str(VENV_PYTHON) if VENV_PYTHON.exists() else sys.executable
@@ -97,6 +105,8 @@ def start_recording():
     env['HF_HUB_OFFLINE'] = '1'
     env['TRANSFORMERS_OFFLINE'] = '1'
     env['HF_DATASETS_OFFLINE'] = '1'
+
+    starting_marker.touch()
 
     try:
         with open(LOG_FILE, 'w') as log:
@@ -108,18 +118,12 @@ def start_recording():
                 start_new_session=True
             )
     except Exception as e:
+        starting_marker.unlink(missing_ok=True)
         print(f"  ✗ Error starting daemon: {e}", file=sys.stderr)
         return False
 
-    deadline = time.time() + STARTUP_TIMEOUT
-    while time.time() < deadline:
-        if SOCKET_FILE.exists() and find_processes():
-            print("✓ Recording started")
-            return True
-        time.sleep(0.3)
-
-    print("✗ Failed to start recording (check /tmp/voice_to_text.log)", file=sys.stderr)
-    return False
+    print("✓ Recording started")
+    return True
 
 
 def main():
