@@ -5,6 +5,7 @@ Records audio and inserts transcribed text at cursor position.
 """
 
 import argparse
+import glob
 import os
 import socket
 import subprocess
@@ -16,11 +17,18 @@ import warnings
 import wave
 from pathlib import Path
 
+# Force offline mode for all HuggingFace libraries — must be set
+# BEFORE any HF-related imports to prevent network hang on unreachable hosts.
+os.environ['HF_HUB_OFFLINE'] = '1'
+os.environ['TRANSFORMERS_OFFLINE'] = '1'
+os.environ['HF_DATASETS_OFFLINE'] = '1'
+
 import numpy as np
 import pyaudio
+import soundfile as sf
 import torch
 import torchaudio
-import whisper
+from qwen_asr import Qwen3ASRModel
 
 # Configuration
 SAMPLE_RATE = 44100
@@ -32,14 +40,8 @@ FINISH_BEEP_FREQ = 523
 START_BEEP_DURATION = 0.24
 FINISH_BEEP_DURATION = 0.12
 XDOTOOL_TIMEOUT = 10
-MODEL_SIZE_DEFAULT = 'medium'
-MODEL_CHOICES = ['tiny', 'base', 'small', 'medium', 'large']
-
-# High-accuracy transcription settings
-BEAM_SIZE = 5          # Default was 1, higher = better accuracy but slower
-BEST_OF = 5            # Default was 1, number of candidates to sample
-TEMPERATURE = 0.0      # 0 = deterministic, higher = more random
-CONDITION_ON_PREVIOUS = False  # Reduce hallucination, don't condition on previous text
+MODEL_SIZE_DEFAULT = 'qwen3-asr-0.6b'
+MODEL_CHOICES = ['qwen3-asr-0.6b']
 
 warnings.filterwarnings("ignore", message="FP16 is not supported on CPU")
 
@@ -54,14 +56,18 @@ class AudioPreprocessor:
         Returns path to processed audio file.
         """
         try:
-            # Load audio
-            waveform, sample_rate = torchaudio.load(audio_path)
+            # Load audio using soundfile (more robust than torchaudio)
+            data, sample_rate = sf.read(audio_path, dtype='float32')
+            if data.ndim == 1:
+                waveform = torch.from_numpy(data).unsqueeze(0)
+            else:
+                waveform = torch.from_numpy(data).t().contiguous()
 
             # Convert to mono if stereo
             if waveform.shape[0] > 1:
                 waveform = torch.mean(waveform, dim=0, keepdim=True)
 
-            # Resample to 16kHz (Whisper's expected sample rate)
+            # Resample to 16kHz (Qwen3-ASR's expected sample rate)
             if sample_rate != 16000:
                 resampler = torchaudio.transforms.Resample(
                     orig_freq=sample_rate, new_freq=16000
@@ -78,7 +84,7 @@ class AudioPreprocessor:
 
             # Save processed audio
             processed_path = audio_path.replace('.wav', '_processed.wav')
-            torchaudio.save(processed_path, waveform, 16000)
+            sf.write(processed_path, waveform.squeeze().numpy(), 16000)
 
             return processed_path
 
@@ -158,10 +164,14 @@ class AudioPreprocessor:
 
 
 class AudioTranscriber:
-    """Whisper model wrapper with async loading."""
+    """Qwen3-ASR model wrapper with async loading."""
 
-    def __init__(self, model_size='small'):
-        self.model_size = model_size
+    # Local model directory — copy from HF cache with:
+    #   cp -rL ~/.cache/huggingface/hub/models--Qwen--Qwen3-ASR-0.6B/snapshots/<hash>/* models/qwen3-asr-0.6b/
+    MODEL_PATH = str(Path(__file__).parent / "models" / "qwen3-asr-0.6b")
+
+    def __init__(self, model_name='qwen3-asr-0.6b'):
+        self.model_name = model_name
         self._model = None
         self._ready = threading.Event()
         self._error = None
@@ -171,39 +181,43 @@ class AudioTranscriber:
 
     def _load(self):
         try:
-            self._model = whisper.load_model(self.model_size, device="cuda")
+            if Path(self.MODEL_PATH).is_dir():
+                model_id = self.MODEL_PATH
+            else:
+                model_id = "Qwen/Qwen3-ASR-0.6B"
+
+            self._model = Qwen3ASRModel.from_pretrained(
+                model_id,
+                dtype=torch.bfloat16,
+                device_map="cuda",
+                max_inference_batch_size=1,
+                max_new_tokens=256,
+                local_files_only=True,
+            )
         except Exception as e:
             self._error = e
         finally:
             self._ready.set()
 
-    def wait_for_ready(self):
-        self._ready.wait()
+    def wait_for_ready(self, timeout=120):
+        if not self._ready.wait(timeout=timeout):
+            raise RuntimeError(
+                f"Model loading timed out after {timeout}s"
+            )
         if self._error:
             raise self._error
         return self._model
 
     def transcribe(self, audio_path):
-        """Transcribe audio file to text with high accuracy settings."""
+        """Transcribe audio file to text."""
         model = self.wait_for_ready()
 
-        # Auto-detect language and transcribe
-        result = model.transcribe(
-            str(audio_path),
-            verbose=False,
+        results = model.transcribe(
+            audio=str(audio_path),
             language=None,  # Auto-detect
-            task='transcribe',
-            fp16=True,
-            best_of=BEST_OF,
-            beam_size=BEAM_SIZE,
-            temperature=0.0,
-            condition_on_previous_text=CONDITION_ON_PREVIOUS,
-            no_speech_threshold=0.6,
-            compression_ratio_threshold=2.4,
-            initial_prompt=None,
         )
 
-        return result["text"].strip()
+        return results[0].text.strip()
 
 
 class AudioRecorder:
@@ -445,27 +459,82 @@ class TextInserter:
     """Insert text using xdotool."""
 
     @staticmethod
+    def _get_x11_env():
+        """Discover X11 environment (DISPLAY, XAUTHORITY) for xdotool."""
+        env = os.environ.copy()
+
+        if "DISPLAY" not in env:
+            env["DISPLAY"] = ":1"
+
+        if "XAUTHORITY" not in env:
+            uid = os.getuid()
+            home = os.path.expanduser("~")
+            candidates = [
+                f"/run/user/{uid}/gdm/Xauthority",
+                f"/run/user/{uid}/.mutter-Xwaylandauth.*",
+                os.path.join(home, ".Xauthority"),
+            ]
+            for pattern in candidates:
+                paths = glob.glob(pattern) if "*" in pattern else [pattern]
+                for path in paths:
+                    if os.path.exists(path):
+                        env["XAUTHORITY"] = path
+                        break
+                if "XAUTHORITY" in env:
+                    break
+
+        return env
+
+    @staticmethod
     def check_xdotool():
         """Check if xdotool is installed."""
         try:
-            result = subprocess.run(['xdotool', 'version'],
-                                    capture_output=True, timeout=2)
+            result = subprocess.run(
+                ['xdotool', 'version'],
+                capture_output=True, timeout=2,
+                env=TextInserter._get_x11_env()
+            )
             return result.returncode == 0
         except:
             return False
 
     @staticmethod
-    def insert(text):
-        """Insert text at cursor position."""
+    def get_active_window():
+        """Get the ID of the currently focused window."""
+        try:
+            result = subprocess.run(
+                ['xdotool', 'getactivewindow'],
+                capture_output=True, text=True, timeout=2,
+                env=TextInserter._get_x11_env()
+            )
+            if result.returncode == 0:
+                return result.stdout.strip()
+        except Exception:
+            pass
+        return None
+
+    @staticmethod
+    def insert(text, window_id=None):
+        """Insert text at cursor position, optionally restoring window focus."""
         if not text or not text.strip():
             print("  (No text to insert)")
             return False
 
+        env = TextInserter._get_x11_env()
+
         try:
+            if window_id:
+                subprocess.run(
+                    ['xdotool', 'windowfocus', window_id],
+                    env=env, timeout=2, check=False
+                )
+                time.sleep(0.05)
+
             subprocess.run(
                 ['xdotool', 'type', '--clearmodifiers', '--', text],
                 check=True,
-                timeout=XDOTOOL_TIMEOUT
+                timeout=XDOTOOL_TIMEOUT,
+                env=env
             )
             return True
         except subprocess.CalledProcessError as e:
@@ -487,6 +556,7 @@ class VoiceToTextService:
         self._lock = threading.Lock()
         self._should_exit = False
         self._stop_signal = False
+        self._active_window = None
         self._init_components(model_size)
 
     @property
@@ -534,7 +604,7 @@ class VoiceToTextService:
         print("✓ xdotool is available")
 
         # Start model loading
-        print(f"\n[2/2] Loading Whisper model '{self.model_size}'...")
+        print(f"\n[2/2] Loading Qwen3-ASR model '{self.model_size}'...")
         print("✓ Model loading in background")
 
         if self.keep_audio:
@@ -594,6 +664,7 @@ class VoiceToTextService:
 
         # Start recording BEFORE playing beep, so speech during/after beep is captured
         audio_file = self.recorder.start()
+        self._active_window = TextInserter.get_active_window()
         start_time = time.time()
         print("\nRecording... ", end='', flush=True)
 
@@ -649,7 +720,7 @@ class VoiceToTextService:
             print(f"📝 Transcribed: \"{preview}\"")
 
             print("⌨️  Inserting text...")
-            if TextInserter.insert(text):
+            if TextInserter.insert(text, window_id=self._active_window):
                 print("✓ Done!")
             else:
                 print(f"  Text: {text}")
@@ -702,8 +773,8 @@ Usage:
   voice-to-text --model small      # Use faster model
   voice-to-text --keep-audio       # Keep audio files
 
-Model sizes (speed vs accuracy):
-  tiny, base, small (default), medium, large
+Available model:
+  qwen3-asr-0.6b (default)
 
 Toggle Script:
   Run voice_to_text_toggle.py to start/stop recording via socket.
@@ -715,7 +786,7 @@ Toggle Script:
         type=str,
         default=MODEL_SIZE_DEFAULT,
         choices=MODEL_CHOICES,
-        help=f'Whisper model size (default: {MODEL_SIZE_DEFAULT})'
+        help=f'ASR model to use (default: {MODEL_SIZE_DEFAULT})'
     )
     parser.add_argument(
         '--keep-audio',
