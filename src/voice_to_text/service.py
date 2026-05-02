@@ -36,7 +36,6 @@ class VoiceToTextService:
         self._lock = threading.Lock()
         self._should_exit = False
         self._stop_signal = False
-        self._active_window = None
         self.recorder = AudioRecorder()
         self._transcriber = None
         self._preprocessor = None
@@ -133,7 +132,6 @@ class VoiceToTextService:
         listener_thread.start()
 
         audio_file = self.recorder.start()
-        self._active_window = TextInserter.get_active_window()
         start_time = time.time()
         print("\nRecording... ", end='', flush=True)
 
@@ -196,7 +194,7 @@ class VoiceToTextService:
             print(f"📝 Transcribed: \"{preview}\"")
 
             print("⌨️  Inserting text...")
-            if TextInserter.insert(text, window_id=self._active_window):
+            if TextInserter.insert(text):
                 print("✓ Done!")
             else:
                 print(f"  Text: {text}")

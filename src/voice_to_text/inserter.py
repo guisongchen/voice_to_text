@@ -1,7 +1,6 @@
 import glob
 import os
 import subprocess
-import time
 
 from .config import XDOTOOL_TIMEOUT
 
@@ -45,21 +44,7 @@ class TextInserter:
             return False
 
     @staticmethod
-    def get_active_window():
-        try:
-            result = subprocess.run(
-                ['xdotool', 'getactivewindow'],
-                capture_output=True, text=True, timeout=2,
-                env=TextInserter._get_x11_env()
-            )
-            if result.returncode == 0:
-                return result.stdout.strip()
-        except Exception:
-            pass
-        return None
-
-    @staticmethod
-    def insert(text, window_id=None):
+    def insert(text):
         if not text or not text.strip():
             print("  (No text to insert)")
             return False
@@ -67,13 +52,6 @@ class TextInserter:
         env = TextInserter._get_x11_env()
 
         try:
-            if window_id:
-                subprocess.run(
-                    ['xdotool', 'windowfocus', window_id],
-                    env=env, timeout=2, check=False
-                )
-                time.sleep(0.05)
-
             subprocess.run(
                 ['xdotool', 'type', '--clearmodifiers', '--', text],
                 check=True,
