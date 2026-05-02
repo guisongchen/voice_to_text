@@ -13,7 +13,7 @@ import time
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).parent.resolve()
-TOGGLE_SCRIPT = SCRIPT_DIR / "voice_to_text_toggle.py"
+TOGGLE_SCRIPT = SCRIPT_DIR / "scripts" / "voice-to-text-t"
 DEVICE_NAME_PATTERN = "FiiO"
 
 # X11 keycode - 8 = evdev code. FiiO sends X11 208/209, so evdev 200/201.

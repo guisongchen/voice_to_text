@@ -13,10 +13,10 @@ dependencies = [
 ]
 
 [project.scripts]
-voice-to-text = "voice_to_text:main"
+voice-to-text = "voice_to_text.cli:main"
 
-[tool.setuptools]
-py-modules = ["voice_to_text", "voice_to_text_toggle"]
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]

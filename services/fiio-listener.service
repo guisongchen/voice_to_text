@@ -1,10 +1,10 @@
 [Unit]
-Description=LP998 touch zone listener
+Description=FiiO μBTR button listener for voice-to-text toggle
 After=graphical-session.target bluetooth.target
 
 [Service]
 Type=simple
-ExecStart=%h/projects/voice_to_text/.venv/bin/python3 %h/projects/voice_to_text/lp998_listener.py
+ExecStart=%h/projects/voice_to_text/.venv/bin/python3 %h/projects/voice_to_text/scripts/fiio_listener.py
 Restart=on-failure
 RestartSec=5
 StartLimitBurst=5
