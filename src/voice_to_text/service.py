@@ -1,3 +1,4 @@
+import shutil
 import signal
 import socket
 import threading
@@ -141,6 +142,7 @@ class VoiceToTextService:
             return
 
         processed_file = None
+        text = None
         try:
             print("🔄 Preprocessing audio...")
             processed_file = AudioPreprocessor.preprocess(audio_file)
@@ -150,8 +152,6 @@ class VoiceToTextService:
 
             if not text:
                 print("  ⚠ No speech detected")
-                self._cleanup(audio_file, processed_file)
-                return
 
             preview = text[:80] + "..." if len(text) > 80 else text
             print(f"📝 Transcribed: \"{preview}\"")
@@ -165,18 +165,38 @@ class VoiceToTextService:
         except Exception as e:
             print(f"  ✗ Transcription error: {e}")
         finally:
+            self._save_recording(audio_file, processed_file, text)
             self._cleanup(audio_file, processed_file)
 
+    def _save_recording(self, audio_file, processed_file, text):
+        """Save recording to ~/voice_recordings/ for future model training."""
+        try:
+            archive_dir = Path.home() / "voice_recordings"
+            archive_dir.mkdir(exist_ok=True)
+
+            ts = time.strftime("%Y%m%d_%H%M%S")
+            raw_dest = archive_dir / f"vtt_{ts}_raw.wav"
+            shutil.copy2(audio_file, raw_dest)
+
+            if processed_file and Path(processed_file).exists():
+                proc_dest = archive_dir / f"vtt_{ts}_processed.wav"
+                shutil.copy2(processed_file, proc_dest)
+
+            if text:
+                txt_dest = archive_dir / f"vtt_{ts}.txt"
+                txt_dest.write_text(text)
+
+            print(f"  💾 Saved: {raw_dest.name}")
+        except Exception as e:
+            print(f"  Warning: Could not save recording: {e}")
+
     def _cleanup(self, audio_file, processed_file=None):
-        if audio_file and not self.keep_audio:
+        if audio_file:
             try:
                 Path(audio_file).unlink(missing_ok=True)
             except:
                 pass
-        elif audio_file:
-            print(f"  Audio saved: {audio_file}")
-
-        if processed_file and not self.keep_audio:
+        if processed_file:
             try:
                 Path(processed_file).unlink(missing_ok=True)
             except:
