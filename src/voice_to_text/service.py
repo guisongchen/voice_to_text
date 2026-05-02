@@ -4,7 +4,7 @@ import threading
 import time
 from pathlib import Path
 
-from .audio import AudioRecorder, AudioPreprocessor, BeepPlayer
+from .audio import AudioRecorder, AudioPreprocessor
 from .config import SOCKET_PATH
 from .inserter import TextInserter
 from .transcriber import AudioTranscriber
@@ -46,7 +46,6 @@ class VoiceToTextService:
 
     def _init_components(self, model_size):
         self.recorder = AudioRecorder()
-        self.beep = BeepPlayer()
         self.transcriber = AudioTranscriber(model_size)
 
     def initialize(self):
@@ -118,10 +117,6 @@ class VoiceToTextService:
         start_time = time.time()
         print("\nRecording... ", end='', flush=True)
 
-        time.sleep(0.02)
-        self.beep.open_stream()
-        self.beep.play_start()
-
         try:
             while not self.stop_signal and not self.should_exit:
                 time.sleep(0.1)
@@ -131,9 +126,6 @@ class VoiceToTextService:
         self.recorder.stop()
         duration = time.time() - start_time
         print(f"\nStopped (duration: {duration:.1f}s)")
-
-        self.beep.play_finish()
-        self.beep.close_stream()
 
         if duration < 0.5:
             print("  ⚠ Recording too short, ignoring")
@@ -193,7 +185,6 @@ class VoiceToTextService:
     def cleanup(self):
         self.should_exit = True
         self.recorder.cleanup()
-        self.beep.cleanup()
         if self.server_socket:
             try:
                 self.server_socket.close()
