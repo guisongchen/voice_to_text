@@ -30,15 +30,15 @@ CC_DEBOUNCE_SECONDS = 0.2
 ZONES = [
     {"name": "ring_top",    "center": (500, 350), "cmd": ["xdotool", "key", "Up"],             "desc": "Ring Top -> Up"},
     {"name": "ring_bottom", "center": (500, 620), "cmd": ["xdotool", "key", "Down"],           "desc": "Ring Bottom -> Down"},
-    {"name": "ring_left",   "center": (300, 292), "cmd": ["xdotool", "key", "Left"],           "desc": "Ring Left -> Left"},
-    {"name": "ring_right",  "center": (700, 297), "cmd": ["xdotool", "key", "Right"],          "desc": "Ring Right -> Right"},
-    {"name": "ring_center", "center": (500, 400), "cmd": ["xdotool", "key", "alt+shift+r"],    "desc": "Ring Center -> Alt+Shift+R"},
-    {"name": "left_button", "center": (512, 833), "cmd": ["xdotool", "key", "BackSpace"],      "desc": "Left Button -> Backspace"},
+    {"name": "ring_left",   "center": (300, 292), "cmd": ["xdotool", "key", "alt+Right"],      "desc": "Ring Left -> Alt+Right"},
+    {"name": "ring_right",  "center": (700, 297), "cmd": ["xdotool", "key", "ctrl+Right"],     "desc": "Ring Right -> Ctrl+Right"},
+    {"name": "ring_center", "center": (500, 400), "cmd": ["xdotool", "key", "Return"],         "desc": "Ring Center -> Enter"},
+    {"name": "left_button", "center": (512, 833), "cmd": ["xdotool", "key", "Escape"],         "desc": "Left Button -> Escape"},
 ]
 
 CC_KEY_MAP = {
-    114: (["xdotool", "key", "Return"], "Right Button -> Enter", "right_button"),
-    115: (["xdotool", "key", "Return"], "Right Button -> Enter", "right_button"),
+    114: (["xdotool", "key", "alt+shift+r"], "Right Button -> Alt+Shift+R", "right_button"),
+    115: (["xdotool", "key", "alt+shift+r"], "Right Button -> Alt+Shift+R", "right_button"),
 }
 
 ACTION_LAST_INJECTED_AT = {}
