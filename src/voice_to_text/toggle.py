@@ -5,7 +5,7 @@ import sys
 import time
 from pathlib import Path
 
-from .config import SOCKET_FILE, VENV_PYTHON, LOG_FILE, STOP_TIMEOUT, STARTUP_TIMEOUT
+from .config import SOCKET_FILE, VENV_PYTHON, LOG_FILE
 
 
 def find_processes():
@@ -47,32 +47,24 @@ def kill_processes():
             pass
 
 
-def send_stop():
+def send_toggle():
+    """Send TOGGLE to the running daemon. Returns response string or None on connection failure."""
     if not SOCKET_FILE.exists():
-        return False
+        return None
 
     try:
         client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         client.settimeout(2.0)
         client.connect(str(SOCKET_FILE))
-        client.sendall(b'STOP\n')
-        response = client.recv(1024)
+        client.sendall(b'TOGGLE\n')
+        response = client.recv(1024).decode('utf-8').strip()
         client.close()
-        return response == b'ACK\n'
+        return response
     except (socket.timeout, ConnectionRefusedError, FileNotFoundError):
         pass
     except Exception as e:
-        print(f"  Warning: send_stop error: {e}", file=sys.stderr)
-    return False
-
-
-def wait_for_exit():
-    deadline = time.time() + STOP_TIMEOUT
-    while time.time() < deadline:
-        if not SOCKET_FILE.exists() and not find_processes():
-            return True
-        time.sleep(0.3)
-    return False
+        print(f"  Warning: send_toggle error: {e}", file=sys.stderr)
+    return None
 
 
 def cleanup_stale():
@@ -97,7 +89,7 @@ def start_recording():
     cleanup_stale()
 
     python = str(VENV_PYTHON) if VENV_PYTHON.exists() else sys.executable
-    cmd = [python, "-m", "voice_to_text"]
+    cmd = [python, "-m", "voice_to_text", "--start-recording"]
 
     env = os.environ.copy()
     env['HF_HUB_OFFLINE'] = '1'
@@ -128,31 +120,24 @@ def main():
     daemon_running = SOCKET_FILE.exists() or find_processes()
 
     if daemon_running:
-        print("Recording detected, sending stop command...")
-
-        if not send_stop():
-            pids = find_processes()
-            if pids:
-                print(f"  ⚠ Failed to send STOP (pids: {', '.join(pids)}), force stopping...", file=sys.stderr)
-                cleanup_stale()
-            else:
-                print("  ⚠ Stale socket detected, cleaning up...", file=sys.stderr)
-                if SOCKET_FILE.exists():
-                    SOCKET_FILE.unlink(missing_ok=True)
-            print("✓ Stopped")
+        result = send_toggle()
+        if result is None:
+            print("  ⚠ Daemon unresponsive, cleaning up and cold-starting...", file=sys.stderr)
+            cleanup_stale()
+            return 0 if start_recording() else 1
+        if result == 'STARTED':
+            print("✓ Recording started")
             return 0
-
-        if wait_for_exit():
-            print("✓ Stopped")
+        if result == 'STOPPED':
+            print("✓ Stopping (transcribing)")
             return 0
+        if result == 'BUSY':
+            print("⚠ Daemon busy (transcribing), ignoring press")
+            return 0
+        print(f"✗ Daemon error: {result}", file=sys.stderr)
+        return 1
 
-        print("⚠ Process stuck, force stopping...", file=sys.stderr)
-        cleanup_stale()
-        print("✓ Stopped")
-        return 0
-
-    start_recording()
-    return 0
+    return 0 if start_recording() else 1
 
 
 if __name__ == "__main__":

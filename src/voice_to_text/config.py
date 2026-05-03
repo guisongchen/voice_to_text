@@ -31,4 +31,11 @@ LOG_FILE = Path("/tmp/voice_to_text.log")
 STOP_TIMEOUT = 30.0
 STARTUP_TIMEOUT = 5.0
 
+# Persistent daemon
+IDLE_TIMEOUT_SECONDS = 1800
+IDLE_CHECK_INTERVAL = 60
+MIN_TRANSITION_INTERVAL = 0.2
+SHUTDOWN_TRANSCRIBE_GRACE = 15.0
+MIN_RECORDING_DURATION = 0.5
+
 warnings.filterwarnings("ignore", message="FP16 is not supported on CPU")

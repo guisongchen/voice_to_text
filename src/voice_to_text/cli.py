@@ -29,11 +29,15 @@ Toggle Script:
         '--keep-audio', action='store_true',
         help='Keep audio files for debugging'
     )
+    parser.add_argument(
+        '--start-recording', action='store_true',
+        help='Begin recording immediately (used by toggle for cold-start)'
+    )
     args = parser.parse_args()
 
     service = VoiceToTextService(model_size=args.model, keep_audio=args.keep_audio)
     try:
-        return service.run()
+        return service.run(start_recording=args.start_recording)
     except Exception as e:
         print(f"\n✗ Error: {e}")
         return 1

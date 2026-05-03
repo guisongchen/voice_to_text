@@ -6,12 +6,23 @@ import threading
 import time
 from pathlib import Path
 
-from .config import SOCKET_PATH
+from .config import (
+    IDLE_CHECK_INTERVAL,
+    IDLE_TIMEOUT_SECONDS,
+    MIN_RECORDING_DURATION,
+    MIN_TRANSITION_INTERVAL,
+    SHUTDOWN_TRANSCRIBE_GRACE,
+    SOCKET_PATH,
+)
 from .inserter import TextInserter
 from .recorder import AudioRecorder  # lightweight — no torch/numpy imports
 
 BEEP_START = Path(__file__).parent.parent.parent / "scripts" / "beep_start.wav"
 BEEP_FINISH = Path(__file__).parent.parent.parent / "scripts" / "beep_finish.wav"
+
+STATE_IDLE = 'idle'
+STATE_RECORDING = 'recording'
+STATE_TRANSCRIBING = 'transcribing'
 
 
 def _play_beep(wav_path):
@@ -26,7 +37,7 @@ def _play_beep(wav_path):
 
 
 class VoiceToTextService:
-    """Main voice-to-text service using socket-based IPC."""
+    """Persistent voice-to-text daemon with idle timeout."""
 
     def __init__(self, model_size='small', keep_audio=False):
         self.model_size = model_size
@@ -35,10 +46,17 @@ class VoiceToTextService:
         self.server_socket = None
         self._lock = threading.Lock()
         self._should_exit = False
-        self._stop_signal = False
+
+        # State machine
+        self._state = STATE_IDLE
+        self._last_activity = time.monotonic()
+        self._last_transition = 0.0  # 0 so first transition isn't blocked
+        self._current_audio_file = None
+        self._recording_start_time = None
+        self._transcribe_thread = None
+
         self.recorder = AudioRecorder()
         self._transcriber = None
-        self._preprocessor = None
         self._model_error = None
 
         # Start model loading in background AFTER recorder is ready
@@ -53,16 +71,6 @@ class VoiceToTextService:
     def should_exit(self, value):
         with self._lock:
             self._should_exit = value
-
-    @property
-    def stop_signal(self):
-        with self._lock:
-            return self._stop_signal
-
-    @stop_signal.setter
-    def stop_signal(self, value):
-        with self._lock:
-            self._stop_signal = value
 
     def _load_model(self):
         """Load heavy ML modules in background thread."""
@@ -89,6 +97,128 @@ class VoiceToTextService:
 
         return True
 
+    # ---------- State machine ----------
+
+    def _try_transition(self, from_state, to_state):
+        """Atomic CAS state transition. Returns True if transitioned.
+
+        Rejects if (a) state doesn't match from_state, or (b) less than
+        MIN_TRANSITION_INTERVAL has passed since the previous transition
+        (hardware-bounce guard).
+        """
+        with self._lock:
+            if self._state != from_state:
+                return False
+            now = time.monotonic()
+            if now - self._last_transition < MIN_TRANSITION_INTERVAL:
+                return False
+            self._state = to_state
+            self._last_activity = now
+            self._last_transition = now
+            return True
+
+    def _force_transition(self, to_state):
+        """Unconditional transition (transcribe completion or error rollback)."""
+        with self._lock:
+            self._state = to_state
+            self._last_activity = time.monotonic()
+
+    def _handle_toggle(self):
+        """Returns 'STARTED' / 'STOPPED' / 'BUSY' and dispatches I/O work."""
+        if self._try_transition(STATE_IDLE, STATE_RECORDING):
+            threading.Thread(target=self._begin_recording, daemon=True).start()
+            return 'STARTED'
+        if self._try_transition(STATE_RECORDING, STATE_TRANSCRIBING):
+            threading.Thread(target=self._begin_stop_action, daemon=True).start()
+            return 'STOPPED'
+        return 'BUSY'
+
+    def _begin_recording(self):
+        """Worker thread: open mic, play start beep. Roll back to IDLE on failure."""
+        try:
+            audio_file = self.recorder.start()
+            with self._lock:
+                self._current_audio_file = audio_file
+                self._recording_start_time = time.time()
+            _play_beep(BEEP_START)
+            print(f"\n🎤 Recording... (file: {audio_file})")
+        except Exception as e:
+            print(f"  ✗ Failed to start audio recorder: {e}")
+            self._force_transition(STATE_IDLE)
+
+    def _begin_stop_action(self):
+        """Worker thread: close mic, play beep, dispatch transcription."""
+        with self._lock:
+            audio_file = self._current_audio_file
+            start_time = self._recording_start_time
+        try:
+            self.recorder.stop()
+        except Exception as e:
+            print(f"  ✗ Error stopping recorder: {e}")
+        duration = time.time() - start_time if start_time else 0
+        _play_beep(BEEP_FINISH)
+        print(f"\n⏹  Stopped (duration: {duration:.1f}s)")
+
+        if duration < MIN_RECORDING_DURATION:
+            print("  ⚠ Recording too short, ignoring")
+            self._cleanup(audio_file)
+            with self._lock:
+                self._current_audio_file = None
+                self._recording_start_time = None
+            self._force_transition(STATE_IDLE)
+            return
+
+        t = threading.Thread(
+            target=self._run_transcription, args=(audio_file,), daemon=True
+        )
+        with self._lock:
+            self._transcribe_thread = t
+        t.start()
+
+    def _run_transcription(self, audio_file):
+        try:
+            self._transcribe_and_insert(audio_file)
+        except Exception as e:
+            print(f"  ✗ Transcription thread error: {e}")
+        finally:
+            with self._lock:
+                self._current_audio_file = None
+                self._recording_start_time = None
+                self._transcribe_thread = None
+            self._force_transition(STATE_IDLE)
+
+    def _idle_timer_loop(self):
+        """Daemon thread: exit the daemon after IDLE_TIMEOUT_SECONDS in IDLE."""
+        while not self.should_exit:
+            time.sleep(IDLE_CHECK_INTERVAL)
+            if self.should_exit:
+                return
+            with self._lock:
+                if self._state != STATE_IDLE:
+                    continue
+                idle_for = time.monotonic() - self._last_activity
+            if idle_for > IDLE_TIMEOUT_SECONDS:
+                print(f"\n💤 Idle for {idle_for:.0f}s, exiting daemon")
+                self.should_exit = True
+                return
+
+    def _graceful_shutdown(self):
+        """Salvage in-flight transcription; drop in-flight recording."""
+        with self._lock:
+            state = self._state
+            transcribe_thread = self._transcribe_thread
+        if state == STATE_RECORDING:
+            print("Daemon exiting mid-recording, dropping audio")
+            try:
+                self.recorder.stop()
+            except Exception:
+                pass
+        elif state == STATE_TRANSCRIBING and transcribe_thread is not None:
+            print(f"Daemon exiting, waiting up to {SHUTDOWN_TRANSCRIBE_GRACE}s for transcription")
+            transcribe_thread.join(timeout=SHUTDOWN_TRANSCRIBE_GRACE)
+
+    # ---------- Socket listener ----------
+
     def _socket_listener(self):
         self.server_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 
@@ -99,64 +229,63 @@ class VoiceToTextService:
         self.server_socket.listen(1)
         self.server_socket.settimeout(1.0)
 
-        # Clear the starting sentinel — daemon is now listening
-        Path("/tmp/voice_to_text.starting").unlink(missing_ok=True)
-
         while not self.should_exit:
             try:
                 conn, _ = self.server_socket.accept()
                 command = conn.recv(1024).decode('utf-8').strip()
-                if command == 'STOP':
-                    print("\n⏹️  Stop command received")
-                    self.stop_signal = True
-                conn.sendall(b'ACK\n')
+                if command == 'TOGGLE':
+                    response = self._handle_toggle()
+                else:
+                    response = f'ERROR unknown command: {command}'
+                conn.sendall((response + '\n').encode('utf-8'))
                 conn.close()
             except socket.timeout:
                 continue
-            except:
+            except Exception:
                 break
 
-    def run(self):
+    # ---------- run / lifecycle ----------
+
+    def run(self, start_recording=False):
         if not self.initialize():
             return 1
-
-        print("\n" + "=" * 50)
-        print("✓ Ready — recording")
-        print("  Run toggle script again to stop")
-        print("=" * 50)
 
         signal.signal(signal.SIGINT, lambda s, f: setattr(self, '_should_exit', True))
         signal.signal(signal.SIGTERM, lambda s, f: setattr(self, '_should_exit', True))
 
-        listener_thread = threading.Thread(target=self._socket_listener, daemon=True)
-        listener_thread.start()
+        threading.Thread(target=self._socket_listener, daemon=True).start()
 
-        audio_file = self.recorder.start()
-        start_time = time.time()
-        print("\nRecording... ", end='', flush=True)
+        # Wait for the listener to bind the socket before clearing the spawn sentinel
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline:
+            if self.socket_path.exists():
+                break
+            time.sleep(0.05)
 
-        # Beep after stream is open — microphone is live
-        _play_beep(BEEP_START)
+        Path("/tmp/voice_to_text.starting").unlink(missing_ok=True)
+
+        threading.Thread(target=self._idle_timer_loop, daemon=True).start()
+
+        if start_recording:
+            result = self._handle_toggle()
+            if result != 'STARTED':
+                print(f"  ⚠ Cold-start recording skipped: {result}")
+
+        print("\n" + "=" * 50)
+        print("✓ Daemon ready")
+        print(f"  Idle timeout: {IDLE_TIMEOUT_SECONDS}s")
+        print("=" * 50)
 
         try:
-            while not self.stop_signal and not self.should_exit:
-                time.sleep(0.1)
+            while not self.should_exit:
+                time.sleep(0.5)
         except KeyboardInterrupt:
-            print("\n\n⏹️  Stopping...")
+            print("\n\n⏹  Stopping...")
 
-        self.recorder.stop()
-        duration = time.time() - start_time
-        print(f"\nStopped (duration: {duration:.1f}s)")
-
-        _play_beep(BEEP_FINISH)
-
-        if duration < 0.5:
-            print("  ⚠ Recording too short, ignoring")
-            self._cleanup(audio_file)
-            return 0
-
-        self._transcribe_and_insert(audio_file)
+        self._graceful_shutdown()
         return 0
+
+    # ---------- Transcription / cleanup ----------
 
     def _wait_for_model(self, timeout=120):
         """Wait for model loading to complete. Returns AudioTranscriber wrapper."""
@@ -231,12 +360,12 @@ class VoiceToTextService:
         if audio_file:
             try:
                 Path(audio_file).unlink(missing_ok=True)
-            except:
+            except Exception:
                 pass
         if processed_file:
             try:
                 Path(processed_file).unlink(missing_ok=True)
-            except:
+            except Exception:
                 pass
 
     def cleanup(self):
@@ -245,11 +374,11 @@ class VoiceToTextService:
         if self.server_socket:
             try:
                 self.server_socket.close()
-            except:
+            except Exception:
                 pass
         if self.socket_path.exists():
             try:
                 self.socket_path.unlink()
-            except:
+            except Exception:
                 pass
         Path("/tmp/voice_to_text.starting").unlink(missing_ok=True)
