@@ -16,7 +16,6 @@ dependencies = [
 
 [project.scripts]
 voice-to-text = "voice_to_text.cli:main"
-voice-to-text-dashboard = "voice_to_text.dashboard.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
