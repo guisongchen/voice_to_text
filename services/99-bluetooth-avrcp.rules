@@ -1,3 +1,1 @@
-SUBSYSTEM=="input", ATTRS{name}=="FiiO*AVRCP*", MODE="0660", GROUP="input"
-SUBSYSTEM=="input", ATTRS{name}=="SBH20*AVRCP*", MODE="0660", GROUP="input"
 SUBSYSTEM=="input", ATTRS{name}=="UGREEN-LP998*", MODE="0660", GROUP="input"

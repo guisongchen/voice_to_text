@@ -7,7 +7,7 @@ System-wide voice input for Linux. Press a shortcut, speak, press again — tran
 - **System-wide** — works in any application (browser, editor, terminal)
 - **Qwen3-ASR** — accurate multilingual transcription with GPU acceleration
 - **Fully offline** — model loaded from local storage, no network needed
-- **Bluetooth support** — compatible with FiiO μBTR, Sony SBH20, LP998 touch ring
+- **Bluetooth support** — compatible with UGREEN LP998 touch ring
 - **Safe IPC** — Unix domain socket communication
 
 ## Requirements
@@ -55,8 +55,6 @@ Enable systemd user services:
 
 ```bash
 systemctl --user enable --now lp998-listener
-systemctl --user enable --now fiio-listener
-systemctl --user enable --now sbh20-listener
 ```
 
 ## Project Structure
@@ -73,8 +71,6 @@ voice_to_text/
 │   └── toggle.py            # Start/stop toggle logic
 ├── scripts/                 # Runnable entry points
 │   ├── voice-to-text-t      # Toggle (keyboard shortcut target)
-│   ├── fiio_listener.py     # FiiO μBTR button listener
-│   ├── sbh20_listener.py    # Sony SBH20 button listener
 │   └── lp998_listener.py    # LP998 touch zone listener
 ├── services/                # systemd unit files
 ├── models/                  # Local model files (gitignored)
