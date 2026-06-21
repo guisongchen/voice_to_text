@@ -13,8 +13,13 @@ Usage:
   voice-to-text                    # Start recording
   voice-to-text --keep-audio       # Keep audio files for debugging
 
-Available model:
-  qwen3-asr-0.6b (default)
+Available models:
+  qwen3-asr-0.6b
+  Qwen3-ASR-1.7B
+
+When no model is specified, voice_to_text uses whichever model
+ASRCore already has loaded, falling back to {MODEL_SIZE_DEFAULT}
+if none is loaded.
 
 Toggle Script:
   Run scripts/voice-to-text-t to start/stop recording via socket.
@@ -22,8 +27,8 @@ Toggle Script:
     )
     parser.add_argument(
         '-m', '--model',
-        type=str, default=MODEL_SIZE_DEFAULT, choices=MODEL_CHOICES,
-        help=f'ASR model (default: {MODEL_SIZE_DEFAULT})'
+        type=str, default=None, choices=MODEL_CHOICES,
+        help=f'ASR model (default: use currently loaded ASRCore model, else {MODEL_SIZE_DEFAULT})'
     )
     parser.add_argument(
         '--keep-audio', action='store_true',

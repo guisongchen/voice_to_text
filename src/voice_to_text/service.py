@@ -41,7 +41,7 @@ def _play_beep(wav_path):
 class VoiceToTextService:
     """Persistent voice-to-text daemon with idle timeout."""
 
-    def __init__(self, model_size='small', keep_audio=False):
+    def __init__(self, model_size=None, keep_audio=False):
         self.model_size = model_size
         self.keep_audio = keep_audio
         self.socket_path = Path(SOCKET_PATH)
