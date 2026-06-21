@@ -1,0 +1,75 @@
+<div class="status-grid">
+    <!-- ASRCore 模型卡片 -->
+    <div class="card model-card">
+        <h2>ASRCore 模型</h2>
+        <div class="model-status">
+            <span class="badge badge-{{ asr.state }}">{{ asr.state }}</span>
+            {% if asr.model_name %}
+            <span class="model-name">{{ asr.model_name }}</span>
+            {% endif %}
+            {% if asr.gpu_memory_mb is not none %}
+            <span class="gpu-mem">{{ "%.1f"|format(asr.gpu_memory_mb) }} MB</span>
+            {% endif %}
+        </div>
+        {% if asr.error_message %}
+        <div class="error-message">{{ asr.error_message }}</div>
+        {% endif %}
+
+        <form class="model-controls"
+              hx-post="/api/asr/load"
+              hx-target="#status-panel"
+              hx-swap="outerHTML">
+            <select name="model_name">
+                {% for m in models %}
+                <option value="{{ m }}"{% if m == asr.model_name %} selected{% endif %}>{{ m }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit">加载模型</button>
+            <button type="button"
+                    class="danger"
+                    hx-post="/api/asr/unload"
+                    hx-target="#status-panel"
+                    hx-swap="outerHTML">卸载模型</button>
+        </form>
+    </div>
+
+    <!-- 服务列表卡片 -->
+    <div class="card services-card">
+        <h2>应用服务</h2>
+        <table class="services-table">
+            <thead>
+                <tr>
+                    <th>服务</th>
+                    <th>状态</th>
+                    <th>运行时长</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for svc in services %}
+                <tr>
+                    <td>{{ svc.name }}</td>
+                    <td>
+                        <span class="badge badge-{{ 'active' if svc.active else 'inactive' }}">
+                            {{ svc.status }}
+                        </span>
+                    </td>
+                    <td>{{ svc.uptime or '-' }}</td>
+                    <td class="actions">
+                        <button hx-post="/api/services/{{ svc.name }}/start"
+                                hx-target="#status-panel"
+                                hx-swap="outerHTML">启动</button>
+                        <button class="danger"
+                                hx-post="/api/services/{{ svc.name }}/stop"
+                                hx-target="#status-panel"
+                                hx-swap="outerHTML">停止</button>
+                        <button hx-post="/api/services/{{ svc.name }}/restart"
+                                hx-target="#status-panel"
+                                hx-swap="outerHTML">重启</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>

@@ -6,6 +6,8 @@ import threading
 import time
 from pathlib import Path
 
+from asr_core.client import ASRCoreClient
+
 from .config import (
     IDLE_CHECK_INTERVAL,
     IDLE_TIMEOUT_SECONDS,
@@ -56,11 +58,11 @@ class VoiceToTextService:
         self._transcribe_thread = None
 
         self.recorder = AudioRecorder()
-        self._transcriber = None
-        self._model_error = None
+        self._asr_client = ASRCoreClient(auto_start=True)
 
-        # Start model loading in background AFTER recorder is ready
-        threading.Thread(target=self._load_model, daemon=True).start()
+    def __del__(self):
+        if hasattr(self, '_asr_client'):
+            self._asr_client.close()
 
     @property
     def should_exit(self):
@@ -71,14 +73,6 @@ class VoiceToTextService:
     def should_exit(self, value):
         with self._lock:
             self._should_exit = value
-
-    def _load_model(self):
-        """Load heavy ML modules in background thread."""
-        try:
-            from .transcriber import AudioTranscriber
-            self._transcriber = AudioTranscriber(self.model_size)
-        except Exception as e:
-            self._model_error = e
 
     def initialize(self):
         print("=" * 50)
@@ -92,8 +86,7 @@ class VoiceToTextService:
             return False
         print("✓ xdotool is available")
 
-        print(f"\n[2/2] Loading Qwen3-ASR model '{self.model_size}'...")
-        print("✓ Model loading in background")
+        print("\n[2/2] ASRCore client ready (model loaded on first use)")
 
         return True
 
@@ -287,18 +280,6 @@ class VoiceToTextService:
 
     # ---------- Transcription / cleanup ----------
 
-    def _wait_for_model(self, timeout=120):
-        """Wait for model loading to complete. Returns AudioTranscriber wrapper."""
-        deadline = time.time() + timeout
-        while time.time() < deadline:
-            if self._transcriber is not None:
-                self._transcriber.wait_for_ready(timeout=timeout)
-                return self._transcriber
-            if self._model_error:
-                raise self._model_error
-            time.sleep(0.5)
-        raise RuntimeError(f"Model loading timed out after {timeout}s")
-
     def _transcribe_and_insert(self, audio_file):
         if not audio_file or not Path(audio_file).exists():
             print("  ✗ Error: Audio file not found")
@@ -307,14 +288,9 @@ class VoiceToTextService:
         processed_file = None
         text = None
         try:
-            from .audio import AudioPreprocessor  # lazy heavy import
-
-            print("🔄 Preprocessing audio...")
-            processed_file = AudioPreprocessor.preprocess(audio_file)
-
-            print("🔄 Transcribing...")
-            model = self._wait_for_model()
-            text = model.transcribe(processed_file)
+            print("🔄 Transcribing via ASRCore...")
+            result = self._asr_client.transcribe(audio_file, model_name=self.model_size)
+            text = result.get("text", "").strip()
 
             if not text:
                 print("  ⚠ No speech detected")
@@ -331,10 +307,10 @@ class VoiceToTextService:
         except Exception as e:
             print(f"  ✗ Transcription error: {e}")
         finally:
-            self._save_recording(audio_file, processed_file, text)
-            self._cleanup(audio_file, processed_file)
+            self._save_recording(audio_file, text)
+            self._cleanup(audio_file)
 
-    def _save_recording(self, audio_file, processed_file, text):
+    def _save_recording(self, audio_file, text):
         """Save recording to ~/voice_recordings/ for future model training."""
         try:
             archive_dir = Path.home() / "voice_recordings"
@@ -344,10 +320,6 @@ class VoiceToTextService:
             raw_dest = archive_dir / f"vtt_{ts}_raw.wav"
             shutil.copy2(audio_file, raw_dest)
 
-            if processed_file and Path(processed_file).exists():
-                proc_dest = archive_dir / f"vtt_{ts}_processed.wav"
-                shutil.copy2(processed_file, proc_dest)
-
             if text:
                 txt_dest = archive_dir / f"vtt_{ts}.txt"
                 txt_dest.write_text(text)
@@ -356,21 +328,21 @@ class VoiceToTextService:
         except Exception as e:
             print(f"  Warning: Could not save recording: {e}")
 
-    def _cleanup(self, audio_file, processed_file=None):
+    def _cleanup(self, audio_file):
         if audio_file:
             try:
                 Path(audio_file).unlink(missing_ok=True)
-            except Exception:
-                pass
-        if processed_file:
-            try:
-                Path(processed_file).unlink(missing_ok=True)
             except Exception:
                 pass
 
     def cleanup(self):
         self.should_exit = True
         self.recorder.cleanup()
+        if self._asr_client:
+            try:
+                self._asr_client.close()
+            except Exception:
+                pass
         if self.server_socket:
             try:
                 self.server_socket.close()

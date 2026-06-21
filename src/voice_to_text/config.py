@@ -20,8 +20,8 @@ XDOTOOL_TIMEOUT = 10
 
 # Model
 MODEL_SIZE_DEFAULT = 'qwen3-asr-0.6b'
-MODEL_CHOICES = ['qwen3-asr-0.6b']
-MODEL_LOCAL_PATH = str(Path(__file__).parent.parent.parent / "models" / "qwen3-asr-0.6b")
+MODEL_CHOICES = ['qwen3-asr-0.6b', 'Qwen3-ASR-1.7B']
+MODEL_LOCAL_PATH = str(Path(__file__).parent.parent.parent / "models" / MODEL_SIZE_DEFAULT)
 
 # Toggle
 SOCKET_FILE = Path("/tmp/voice_to_text.sock")

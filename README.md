@@ -6,6 +6,8 @@ System-wide voice input for Linux. Press a shortcut, speak, press again — tran
 
 - **System-wide** — works in any application (browser, editor, terminal)
 - **Qwen3-ASR** — accurate multilingual transcription with GPU acceleration
+- **Shared ASRCore** — model lifecycle managed by a central ASR service
+- **Web dashboard** — manage services, load/unload models, view logs
 - **Fully offline** — model loaded from local storage, no network needed
 - **Bluetooth support** — compatible with UGREEN LP998 touch ring
 - **Safe IPC** — Unix domain socket communication
@@ -17,6 +19,7 @@ System-wide voice input for Linux. Press a shortcut, speak, press again — tran
 - NVIDIA GPU with CUDA
 - xdotool (`sudo apt install xdotool`)
 - PortAudio (`sudo apt install portaudio19-dev`)
+- [ASRCore](../asr_core) installed as a local dependency
 
 ## Installation
 
@@ -28,11 +31,35 @@ cd voice_to_text
 uv sync
 uv pip install -e .
 
-# Copy the model to local storage
+# Copy the model to local storage (or symlink from ASRCore)
 cp -rL ~/.cache/huggingface/hub/models--Qwen--Qwen3-ASR-0.6B/snapshots/*/ models/qwen3-asr-0.6b/
 ```
 
 ## Quick Start
+
+### Start services
+
+```bash
+# Enable all related systemd user services
+systemctl --user enable --now asr-core
+systemctl --user enable --now voice-to-text
+systemctl --user enable --now lp998-listener
+systemctl --user enable --now voice-to-text-dashboard
+```
+
+Or use the convenience script:
+
+```bash
+./restart-services.sh
+```
+
+### Web dashboard
+
+Open http://localhost:8080 to:
+- Monitor ASRCore model status
+- Load/unload models
+- Start/stop/restart services
+- View live logs
 
 ### Keyboard Shortcut (GNOME)
 
@@ -51,7 +78,7 @@ dconf write /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings "['
 
 ### Bluetooth / LP998 Touch Ring
 
-Enable systemd user services:
+The LP998 listener is managed by systemd:
 
 ```bash
 systemctl --user enable --now lp998-listener
@@ -64,11 +91,15 @@ voice_to_text/
 ├── src/voice_to_text/       # Python package
 │   ├── cli.py               # CLI entry point
 │   ├── config.py            # Constants
-│   ├── audio.py             # AudioRecorder, AudioPreprocessor, BeepPlayer
-│   ├── transcriber.py       # Qwen3-ASR model wrapper
+│   ├── recorder.py          # AudioRecorder (no ML imports)
 │   ├── inserter.py          # xdotool text insertion
-│   ├── service.py           # Main service with socket IPC
-│   └── toggle.py            # Start/stop toggle logic
+│   ├── service.py           # Main daemon with socket IPC
+│   ├── toggle.py            # Start/stop toggle logic
+│   └── dashboard/           # Web management console
+│       ├── app.py           # FastAPI backend
+│       ├── systemd.py       # systemd helpers
+│       ├── static/
+│       └── templates/
 ├── scripts/                 # Runnable entry points
 │   ├── voice-to-text-t      # Toggle (keyboard shortcut target)
 │   └── lp998_listener.py    # LP998 touch zone listener
@@ -83,18 +114,19 @@ voice_to_text/
 ### Text not appearing
 - Ensure xdotool is installed: `sudo apt install xdotool`
 - Click in the target text field before pressing the shortcut
-- Check the log: `tail -f /tmp/voice_to_text.log`
+- Check the log: `journalctl --user -fu voice-to-text`
 
 ### Recording won't start
 ```bash
 # Clean up stale state
-rm -f /tmp/voice_to_text.sock
+rm -f /tmp/voice_to_text.sock /tmp/asr_core.sock
 # Check for stuck processes
 pgrep -af voice.to.text
+pgrep -af asr_core
 ```
 
 ### Model loading fails
-Ensure the model is copied to `models/qwen3-asr-0.6b/`. If missing, the daemon falls back to loading from HuggingFace cache (requires `HF_HUB_OFFLINE=1` to prevent network hangs).
+Ensure the model is available in `models/qwen3-asr-0.6b/` or in the shared ASRCore `models/` directory. ASRCore loads models from its own project tree.
 
 ### Debug mode
 ```bash
