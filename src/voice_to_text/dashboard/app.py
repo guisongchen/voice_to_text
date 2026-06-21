@@ -124,6 +124,16 @@ def partial_status(request: Request):
     )
 
 
+@app.get("/embed", response_class=HTMLResponse)
+def embed(request: Request):
+    status = _full_status()
+    return templates.TemplateResponse(
+        request,
+        "embed.html",
+        {"services": status["services"]},
+    )
+
+
 @app.get("/partials/logs/{name}", response_class=HTMLResponse)
 def partial_logs(request: Request, name: str, lines: int = 50):
     return templates.TemplateResponse(

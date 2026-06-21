@@ -16,7 +16,7 @@
                 hx-target="#logs-content"
                 hx-trigger="change, load"
                 hx-vals='js:{lines: 50}'>
-            {% for svc in ["asr-core", "voice-to-text", "lp998-listener", "voice-to-text-dashboard"] %}
+            {% for svc in ["asr-core", "asr-core-dashboard", "voice-to-text", "lp998-listener", "voice-to-text-dashboard"] %}
             <option value="{{ svc }}"{% if svc == "asr-core" %} selected{% endif %}>{{ svc }}</option>
             {% endfor %}
         </select>
