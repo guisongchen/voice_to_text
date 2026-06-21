@@ -15,7 +15,7 @@ class ServiceState:
 class SystemdManager:
     """Thin wrapper around `systemctl --user` for service management."""
 
-    SERVICES = ["asr-core", "asr-core-dashboard", "voice-to-text", "lp998-listener", "voice-to-text-dashboard"]
+    SERVICES = ["asr-core", "voice-to-text", "lp998-listener", "voice-to-text-dashboard"]
 
     def __init__(self, user: bool = True):
         self.user = user

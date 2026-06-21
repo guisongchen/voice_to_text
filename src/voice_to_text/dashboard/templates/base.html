@@ -5,13 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Voice-to-Text 中控台{% endblock %}</title>
     <link rel="stylesheet" href="/static/style.css">
-    <script src="/static/htmx.min.js"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
 </head>
 <body>
     <div class="container">
         <header>
             <h1>Voice-to-Text 中控台</h1>
-            <p class="subtitle">ASR 模型 &middot; 服务编排 &middot; 日志</p>
+            <p class="subtitle">ASRCore 服务状态与应用管理</p>
         </header>
         {% block content %}{% endblock %}
     </div>

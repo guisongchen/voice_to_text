@@ -2,16 +2,8 @@
 
 {% block content %}
 
-<!-- ASRCore 嵌入式面板 -->
-<section class="asr-embed">
-    <div class="section-header">
-        <h2>ASRCore 模型管理</h2>
-    </div>
-    <iframe src="http://127.0.0.1:8124" class="asr-frame"></iframe>
-</section>
-
-<!-- 服务编排面板 -->
-<section id="status-panel" hx-get="/partials/status" hx-trigger="load, every 5s">
+<!-- ASRCore 状态面板 -->
+<section id="status-panel" hx-get="/partials/status" hx-trigger="load, every 3s">
     {% include "partials/status.html" %}
 </section>
 
@@ -24,7 +16,7 @@
                 hx-target="#logs-content"
                 hx-trigger="change, load"
                 hx-vals='js:{lines: 50}'>
-            {% for svc in ["asr-core", "voice-to-text", "lp998-listener", "asr-core-dashboard", "voice-to-text-dashboard"] %}
+            {% for svc in ["asr-core", "voice-to-text", "lp998-listener", "voice-to-text-dashboard"] %}
             <option value="{{ svc }}"{% if svc == "asr-core" %} selected{% endif %}>{{ svc }}</option>
             {% endfor %}
         </select>
@@ -32,7 +24,7 @@
     <div id="logs-content" class="logs-box"
          hx-get="/partials/logs/asr-core"
          hx-target="this"
-         hx-trigger="every 5s"
+         hx-trigger="every 3s"
          hx-vals='js:{lines: 50}'>
         {% include "partials/logs.html" %}
     </div>
