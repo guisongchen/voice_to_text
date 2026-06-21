@@ -6,7 +6,7 @@ This file provides guidance to Claude Code when working in the `voice_to_text` r
 
 `voice_to_text` is a system-wide voice input tool for Linux. Press a shortcut (or the LP998 Bluetooth button), speak, press again, and transcribed text is inserted at the cursor via `xdotool`.
 
-The daemon no longer loads the ASR model itself. It delegates transcription to the shared **ASRCore** service (`/home/ccc/projects/asr_core`) over a Unix socket.
+The daemon is intentionally lightweight: it records audio and delegates transcription to the shared **ASRCore** service (`/home/ccc/projects/asr_core`) over a Unix domain socket. There are no ML imports in this repository.
 
 ## Architecture
 
@@ -18,18 +18,17 @@ voice_to_text/
 │   ├── recorder.py         # pyaudio-based audio recorder (no ML imports)
 │   ├── inserter.py         # xdotool text insertion
 │   ├── toggle.py           # Socket client that spawns the daemon on demand
-│   ├── config.py           # Constants
-│   └── dashboard/          # FastAPI + HTMX web management console
-│       ├── app.py
-│       ├── systemd.py
-│       ├── static/
-│       └── templates/
+│   └── config.py           # Constants
 ├── scripts/
 │   ├── voice-to-text-t     # Keyboard shortcut target
-│   └── lp998_listener.py   # UGREEN LP998 Bluetooth touch-ring listener
+│   ├── lp998_listener.py   # UGREEN LP998 Bluetooth touch-ring listener
+│   ├── beep_start.wav      # Start-recording beep
+│   └── beep_finish.wav     # Stop-recording beep
 ├── services/               # systemd user units
-├── models/                 # Local model files (gitignored)
-└── restart-services.sh     # Convenience wrapper around systemctl
+├── doc/                    # Documentation
+│   └── voice_to_text_spec.md
+├── pyproject.toml
+└── README.md
 ```
 
 ## Environment
@@ -54,24 +53,29 @@ asr-core @ file:///home/ccc/projects/asr_core
 systemctl --user enable --now asr-core
 systemctl --user enable --now voice-to-text
 systemctl --user enable --now lp998-listener
-systemctl --user enable --now voice-to-text-dashboard
 ```
 
-Or use `./restart-services.sh`.
+Or restart them together:
+
+```bash
+systemctl --user restart asr-core voice-to-text lp998-listener
+```
 
 ### Manual
 
 ```bash
-# Terminal 1: ensure ASRCore is running
+# Terminal 1: start the voice-to-text daemon
 .venv/bin/python3 -m voice_to_text
 
 # Terminal 2: toggle recording
 .venv/bin/python3 scripts/voice-to-text-t
 ```
 
+The daemon auto-starts ASRCore via `ASRCoreClient(auto_start=True)` if `/tmp/asr_core.sock` is missing.
+
 ## Web dashboard
 
-Open http://localhost:8080 to:
+The dashboard was moved into ASRCore. Open http://localhost:8125 to:
 
 - Monitor ASRCore model status
 - Load/unload ASR models
@@ -85,8 +89,9 @@ Open http://localhost:8080 to:
 
 ## Important notes
 
-- The daemon is lightweight now; heavy model loading happens in ASRCore.
+- The daemon is lightweight; heavy model loading happens in ASRCore.
 - `voice-to-text` auto-starts ASRCore via `ASRCoreClient(auto_start=True)` if the socket is missing.
-- `models/` is gitignored; keep the actual model in `voice_to_text/models/qwen3-asr-0.6b` or symlink it from ASRCore.
-- The LP998 listener is the only hardware-specific component left.
-- Use `journalctl --user -fu voice-to-text -u asr-core -u voice-to-text-dashboard` for live logs.
+- Model files live in ASRCore, not in this repository. Do not store models here.
+- The LP998 listener is the only hardware-specific component.
+- Recordings are archived to `~/voice_recordings/` for future model training.
+- Use `journalctl --user -fu voice-to-text -u asr-core` for live logs.

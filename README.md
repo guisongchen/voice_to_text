@@ -5,10 +5,10 @@ System-wide voice input for Linux. Press a shortcut, speak, press again — tran
 ## Features
 
 - **System-wide** — works in any application (browser, editor, terminal)
-- **Qwen3-ASR** — accurate multilingual transcription with GPU acceleration
-- **Shared ASRCore** — model lifecycle managed by a central ASR service
-- **Web dashboard** — manage services, load/unload models, view logs
-- **Fully offline** — model loaded from local storage, no network needed
+- **Lightweight daemon** — no ML imports; heavy ASR work lives in [ASRCore](../asr_core)
+- **Shared ASRCore** — model lifecycle managed by the central ASR service
+- **Web dashboard** — provided by ASRCore at http://localhost:8125
+- **Fully offline** — ASRCore loads models from local storage, no network needed
 - **Bluetooth support** — compatible with UGREEN LP998 touch ring
 - **Safe IPC** — Unix domain socket communication
 
@@ -16,10 +16,11 @@ System-wide voice input for Linux. Press a shortcut, speak, press again — tran
 
 - Python 3.10+
 - Ubuntu/Linux with X11
-- NVIDIA GPU with CUDA
 - xdotool (`sudo apt install xdotool`)
 - PortAudio (`sudo apt install portaudio19-dev`)
 - [ASRCore](../asr_core) installed as a local dependency
+
+> GPU/CUDA are only required by ASRCore; this daemon itself is CPU-only.
 
 ## Installation
 
@@ -30,32 +31,31 @@ cd voice_to_text
 # Install dependencies
 uv sync
 uv pip install -e .
-
-# Copy the model to local storage (or symlink from ASRCore)
-cp -rL ~/.cache/huggingface/hub/models--Qwen--Qwen3-ASR-0.6B/snapshots/*/ models/qwen3-asr-0.6b/
 ```
+
+ASRCore owns the model files. See the [ASRCore README](../asr_core/README.md) for model setup.
 
 ## Quick Start
 
 ### Start services
 
 ```bash
-# Enable all related systemd user services
+# Enable the systemd user services
 systemctl --user enable --now asr-core
 systemctl --user enable --now voice-to-text
 systemctl --user enable --now lp998-listener
-systemctl --user enable --now voice-to-text-dashboard
 ```
 
-Or use the convenience script:
+Or restart them together:
 
 ```bash
-./restart-services.sh
+systemctl --user restart asr-core voice-to-text lp998-listener
 ```
 
 ### Web dashboard
 
-Open http://localhost:8080 to:
+ASRCore hosts the management UI at http://localhost:8125:
+
 - Monitor ASRCore model status
 - Load/unload models
 - Start/stop/restart services
@@ -93,21 +93,29 @@ voice_to_text/
 │   ├── config.py            # Constants
 │   ├── recorder.py          # AudioRecorder (no ML imports)
 │   ├── inserter.py          # xdotool text insertion
-│   ├── service.py           # Main daemon with socket IPC
-│   ├── toggle.py            # Start/stop toggle logic
-│   └── dashboard/           # Web management console
-│       ├── app.py           # FastAPI backend
-│       ├── systemd.py       # systemd helpers
-│       ├── static/
-│       └── templates/
+│   ├── service.py           # Persistent daemon with socket IPC
+│   └── toggle.py            # Start/stop toggle logic
 ├── scripts/                 # Runnable entry points
 │   ├── voice-to-text-t      # Toggle (keyboard shortcut target)
-│   └── lp998_listener.py    # LP998 touch zone listener
+│   ├── lp998_listener.py    # LP998 touch zone listener
+│   ├── beep_start.wav       # Start-recording beep
+│   └── beep_finish.wav      # Stop-recording beep
 ├── services/                # systemd unit files
-├── models/                  # Local model files (gitignored)
+├── doc/                     # Documentation
+│   └── voice_to_text_spec.md
 ├── pyproject.toml
 └── README.md
 ```
+
+## CLI
+
+```bash
+voice-to-text                 # Start daemon (used by systemd)
+voice-to-text --keep-audio    # Preserve audio files in /tmp/
+voice-to-text -m Qwen3-ASR-1.7B  # Request a specific ASRCore model
+```
+
+By default the daemon asks ASRCore to use whichever model is already loaded, falling back to `qwen3-asr-0.6b` if none is loaded.
 
 ## Troubleshooting
 
@@ -126,7 +134,12 @@ pgrep -af asr_core
 ```
 
 ### Model loading fails
-Ensure the model is available in `models/qwen3-asr-0.6b/` or in the shared ASRCore `models/` directory. ASRCore loads models from its own project tree.
+Model files are owned by ASRCore. Ensure the model is available in ASRCore's model path and that ASRCore is running:
+
+```bash
+systemctl --user status asr-core
+journalctl --user -fu asr-core
+```
 
 ### Debug mode
 ```bash
