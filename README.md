@@ -46,10 +46,10 @@ systemctl --user enable --now voice-to-text
 systemctl --user enable --now lp998-listener
 ```
 
-Or restart them together:
+Or use the convenience script:
 
 ```bash
-systemctl --user restart asr-core voice-to-text lp998-listener
+./restart-services.sh
 ```
 
 ### Web dashboard
@@ -103,6 +103,7 @@ voice_to_text/
 ├── services/                # systemd unit files
 ├── doc/                     # Documentation
 │   └── voice_to_text_spec.md
+├── restart-services.sh      # Convenience wrapper around systemctl
 ├── pyproject.toml
 └── README.md
 ```
