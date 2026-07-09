@@ -11,6 +11,7 @@ System-wide voice input for Linux. Press a shortcut, speak, press again — tran
 - **Fully offline** — ASRCore loads models from local storage, no network needed
 - **Bluetooth support** — compatible with UGREEN LP998 touch ring
 - **Safe IPC** — Unix domain socket communication
+- **Speaker-aware recording** — automatically mutes speakers while recording to prevent audio feedback
 
 ## Requirements
 
@@ -18,6 +19,7 @@ System-wide voice input for Linux. Press a shortcut, speak, press again — tran
 - Ubuntu/Linux with X11
 - xdotool (`sudo apt install xdotool`)
 - PortAudio (`sudo apt install portaudio19-dev`)
+- PulseAudio / PipeWire / ALSA audio control (`pactl`, `wpctl`, or `amixer`; usually pre-installed)
 - [ASRCore](../asr_core) installed as a local dependency
 
 > GPU/CUDA are only required by ASRCore; this daemon itself is CPU-only.
@@ -75,6 +77,12 @@ dconf write /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings "['
 - Press `Alt+Shift+R` to start recording (hear double beep)
 - Speak
 - Press `Alt+Shift+R` again to stop, transcribe, and insert text (hear single beep)
+
+### Speaker mute behavior
+
+While recording, the daemon automatically mutes all audio outputs (`pactl`, `wpctl`, or `amixer`) to prevent music, notifications, or other sounds from leaking into the microphone. The previous mute state is restored when recording stops. If no audio control tool is available, recording still works normally.
+
+This behavior is controlled by `MUTE_SPEAKERS_DURING_RECORDING` in `src/voice_to_text/config.py` (default: `True`).
 
 ### Bluetooth / LP998 Touch Ring
 

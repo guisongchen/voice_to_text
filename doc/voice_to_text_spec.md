@@ -42,6 +42,17 @@
 | Insertion Method | xdotool (simulated keyboard input) |
 | Compatibility | Any application that accepts text input |
 
+### FR-04: Speaker Output Muting During Recording
+
+| Attribute | Description |
+|-----------|-------------|
+| ID | FR-04 |
+| Trigger | Recording starts |
+| Action | Mute all audio output sinks |
+| Scope | System-wide (speakers, headphones, Bluetooth headsets) |
+| Restoration | Previous mute state restored when recording stops |
+| Fallback | If no audio control utility is available, recording continues normally |
+
 ---
 
 ## 3. User Flow
@@ -107,3 +118,5 @@
 | AC-03 | Speech is transcribed to text without network connection |
 | AC-04 | Transcribed text is inserted at the current cursor position |
 | AC-05 | Works across different applications (browser, text editor, terminal) |
+| AC-06 | Speaker outputs are muted while recording and restored when recording stops |
+| AC-07 | Recording continues normally when audio control utilities are unavailable |

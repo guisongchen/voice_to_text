@@ -8,6 +8,7 @@ from pathlib import Path
 
 from asr_core.client import ASRCoreClient
 
+from .audio_control import AudioOutputController
 from .config import (
     IDLE_CHECK_INTERVAL,
     IDLE_TIMEOUT_SECONDS,
@@ -15,6 +16,7 @@ from .config import (
     MIN_TRANSITION_INTERVAL,
     SHUTDOWN_TRANSCRIBE_GRACE,
     SOCKET_PATH,
+    MUTE_SPEAKERS_DURING_RECORDING,
 )
 from .inserter import TextInserter
 from .recorder import AudioRecorder  # lightweight — no torch/numpy imports
@@ -59,6 +61,8 @@ class VoiceToTextService:
 
         self.recorder = AudioRecorder()
         self._asr_client = ASRCoreClient(auto_start=True)
+        self._audio_controller = AudioOutputController()
+        self._mute_speakers = MUTE_SPEAKERS_DURING_RECORDING
 
     def __del__(self):
         if hasattr(self, '_asr_client'):
@@ -127,20 +131,23 @@ class VoiceToTextService:
         return 'BUSY'
 
     def _begin_recording(self):
-        """Worker thread: open mic, play start beep. Roll back to IDLE on failure."""
+        """Worker thread: open mic, play start beep, mute speakers. Roll back to IDLE on failure."""
         try:
             audio_file = self.recorder.start()
             with self._lock:
                 self._current_audio_file = audio_file
                 self._recording_start_time = time.time()
             _play_beep(BEEP_START)
+            if self._mute_speakers:
+                if self._audio_controller.save_and_mute():
+                    print("  🔇 Speakers muted")
             print(f"\n🎤 Recording... (file: {audio_file})")
         except Exception as e:
             print(f"  ✗ Failed to start audio recorder: {e}")
             self._force_transition(STATE_IDLE)
 
     def _begin_stop_action(self):
-        """Worker thread: close mic, play beep, dispatch transcription."""
+        """Worker thread: close mic, restore speakers, play beep, dispatch transcription."""
         with self._lock:
             audio_file = self._current_audio_file
             start_time = self._recording_start_time
@@ -148,6 +155,11 @@ class VoiceToTextService:
             self.recorder.stop()
         except Exception as e:
             print(f"  ✗ Error stopping recorder: {e}")
+
+        if self._mute_speakers:
+            if self._audio_controller.restore():
+                print("  🔊 Speakers restored")
+
         duration = time.time() - start_time if start_time else 0
         _play_beep(BEEP_FINISH)
         print(f"\n⏹  Stopped (duration: {duration:.1f}s)")
@@ -196,7 +208,7 @@ class VoiceToTextService:
                 return
 
     def _graceful_shutdown(self):
-        """Salvage in-flight transcription; drop in-flight recording."""
+        """Salvage in-flight transcription; drop in-flight recording; restore speakers."""
         with self._lock:
             state = self._state
             transcribe_thread = self._transcribe_thread
@@ -209,6 +221,12 @@ class VoiceToTextService:
         elif state == STATE_TRANSCRIBING and transcribe_thread is not None:
             print(f"Daemon exiting, waiting up to {SHUTDOWN_TRANSCRIBE_GRACE}s for transcription")
             transcribe_thread.join(timeout=SHUTDOWN_TRANSCRIBE_GRACE)
+
+        # Always attempt to restore speakers on shutdown.
+        try:
+            self._audio_controller.restore()
+        except Exception:
+            pass
 
     # ---------- Socket listener ----------
 
@@ -337,6 +355,10 @@ class VoiceToTextService:
 
     def cleanup(self):
         self.should_exit = True
+        try:
+            self._audio_controller.restore()
+        except Exception:
+            pass
         self.recorder.cleanup()
         if self._asr_client:
             try:
