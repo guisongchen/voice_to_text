@@ -100,6 +100,7 @@ voice_to_text/
 │   ├── cli.py               # CLI entry point
 │   ├── config.py            # Constants
 │   ├── recorder.py          # AudioRecorder (no ML imports)
+│   ├── audio_control.py     # Speaker mute/restore during recording
 │   ├── inserter.py          # xdotool text insertion
 │   ├── service.py           # Persistent daemon with socket IPC
 │   └── toggle.py            # Start/stop toggle logic
@@ -148,6 +149,12 @@ Model files are owned by ASRCore. Ensure the model is available in ASRCore's mod
 systemctl --user status asr-core
 journalctl --user -fu asr-core
 ```
+
+### Speakers not muted or not restored after recording
+- Ensure one of `pactl`, `wpctl`, or `amixer` is installed and on your `$PATH`
+- Check the log: `journalctl --user -fu voice-to-text`
+- If the daemon was killed with `kill -9`, mute state may not be restored; use `pactl set-sink-mute @DEFAULT_SINK@ 0` to unmute manually
+- Disable the feature by setting `MUTE_SPEAKERS_DURING_RECORDING = False` in `src/voice_to_text/config.py`
 
 ### Debug mode
 ```bash
