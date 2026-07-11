@@ -30,11 +30,13 @@ STATE_TRANSCRIBING = 'transcribing'
 
 
 def _play_beep(wav_path):
+    """Play a WAV file through aplay and wait for it to finish."""
     try:
-        subprocess.Popen(
+        subprocess.run(
             ["aplay", "-q", str(wav_path)],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            start_new_session=True
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
         )
     except Exception:
         pass
@@ -131,17 +133,20 @@ class VoiceToTextService:
         return 'BUSY'
 
     def _begin_recording(self):
-        """Worker thread: open mic, play start beep, mute speakers. Roll back to IDLE on failure."""
+        """Worker thread: open mic, play start beep, then mute speakers. Roll back to IDLE on failure."""
         try:
             audio_file = self.recorder.start()
             with self._lock:
                 self._current_audio_file = audio_file
                 self._recording_start_time = time.time()
             _play_beep(BEEP_START)
-            if self._mute_speakers:
-                if self._audio_controller.save_and_mute():
-                    print("  🔇 Speakers muted")
-            print(f"\n🎤 Recording... (file: {audio_file})")
+            with self._lock:
+                still_recording = self._state == STATE_RECORDING
+            if still_recording:
+                if self._mute_speakers:
+                    if self._audio_controller.save_and_mute():
+                        print("  🔇 Speakers muted")
+                print(f"\n🎤 Recording... (file: {audio_file})")
         except Exception as e:
             print(f"  ✗ Failed to start audio recorder: {e}")
             self._force_transition(STATE_IDLE)
