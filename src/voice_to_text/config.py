@@ -2,7 +2,7 @@ import warnings
 from pathlib import Path
 
 # Audio settings
-SAMPLE_RATE = 44100
+SAMPLE_RATE = 16000
 CHANNELS = 1
 CHUNK_SIZE = 1024
 
