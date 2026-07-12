@@ -3,7 +3,7 @@ from pathlib import Path
 
 # Audio settings
 SAMPLE_RATE = 44100
-CHANNELS = 2
+CHANNELS = 1
 CHUNK_SIZE = 1024
 
 # Socket IPC
