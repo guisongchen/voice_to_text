@@ -26,6 +26,7 @@ from evdev import InputDevice, ecodes, list_devices
 # Import shared X11 environment discovery from the voice_to_text package.
 # The package is installed in the same venv as this script.
 from voice_to_text.x11_env import get_x11_env
+from voice_to_text.toggle import main as toggle_main
 
 MAC = os.environ.get("LP998_MAC", "5C:08:19:C2:4D:AF")
 DEVICE_NAME_PATTERN = "LP998"
@@ -43,9 +44,13 @@ ZONES = [
     {"name": "left_button", "center": (512, 833), "cmd": ["xdotool", "key", "Escape"],         "desc": "Left Button -> Escape"},
 ]
 
+# Consumer Control key mappings.
+# The right physical button (codes 114/115) toggles voice-to-text recording
+# by calling the toggle module directly (GNOME custom shortcuts don't
+# reliably fire from xdotool-injected key events).
 CC_KEY_MAP = {
-    114: (["xdotool", "key", "alt+shift+r"], "Right Button -> Alt+Shift+R", "right_button"),
-    115: (["xdotool", "key", "alt+shift+r"], "Right Button -> Alt+Shift+R", "right_button"),
+    114: ("toggle_voice", "Right Button -> Toggle Recording", "right_button"),
+    115: ("toggle_voice", "Right Button -> Toggle Recording", "right_button"),
 }
 
 ACTION_LAST_INJECTED_AT = {}
@@ -100,6 +105,17 @@ def inject_keys(cmd, description):
     print(f"Injected: {description}")
 
 
+def run_voice_toggle(description):
+    """Call the voice-to-text toggle directly (non-blocking, in a thread)."""
+    def _run():
+        try:
+            toggle_main()
+            print(f"Injected: {description}")
+        except Exception as e:
+            print(f"Error toggling voice-to-text: {e}", file=sys.stderr)
+    threading.Thread(target=_run, daemon=True).start()
+
+
 def debounce_action(debounce_key, debounce_seconds):
     """Return elapsed time if action should be suppressed, else None."""
     now = time.monotonic()
@@ -140,7 +156,7 @@ def consume_cc_events(device, debug=False):
 
             mapping = CC_KEY_MAP.get(event.code)
             if mapping:
-                cmd, description, debounce_key = mapping
+                action, description, debounce_key = mapping
                 elapsed = debounce_action(debounce_key, CC_DEBOUNCE_SECONDS)
                 if elapsed is not None:
                     if debug:
@@ -149,7 +165,11 @@ def consume_cc_events(device, debug=False):
                             f"(code={event.code}, dt={elapsed:.3f}s)"
                         )
                     continue
-                inject_keys(cmd, description)
+                if action == "toggle_voice":
+                    run_voice_toggle(description)
+                else:
+                    # Generic xdotool command fallback
+                    inject_keys(action, description)
     except OSError:
         pass
 
