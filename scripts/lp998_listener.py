@@ -7,10 +7,13 @@ The LP998 is a Bluetooth presenter remote with a touchpad-based ring
 
 Both the touchpad and Consumer Control evdev devices are grabbed so
 the system (desktop environment) cannot intercept button events.
+
+Configuration:
+    LP998_MAC  — Bluetooth MAC address (default: 5C:08:19:C2:4D:AF).
+                 Set via environment variable for a different device.
 """
 
 import argparse
-import glob
 import math
 import os
 import subprocess
@@ -20,7 +23,11 @@ import time
 
 from evdev import InputDevice, ecodes, list_devices
 
-MAC = "5C:08:19:C2:4D:AF"
+# Import shared X11 environment discovery from the voice_to_text package.
+# The package is installed in the same venv as this script.
+from voice_to_text.x11_env import get_x11_env
+
+MAC = os.environ.get("LP998_MAC", "5C:08:19:C2:4D:AF")
 DEVICE_NAME_PATTERN = "LP998"
 
 ZONE_THRESHOLD = 75
@@ -79,30 +86,6 @@ def is_connected():
         text=True,
     )
     return "boolean true" in result.stdout
-
-
-def get_x11_env():
-    """Discover X11 environment for xdotool."""
-    env = os.environ.copy()
-    if "DISPLAY" not in env:
-        env["DISPLAY"] = ":1"
-    if "XAUTHORITY" not in env:
-        uid = os.getuid()
-        home = os.path.expanduser("~")
-        candidates = [
-            f"/run/user/{uid}/gdm/Xauthority",
-            f"/run/user/{uid}/.mutter-Xwaylandauth.*",
-            os.path.join(home, ".Xauthority"),
-        ]
-        for pattern in candidates:
-            paths = glob.glob(pattern) if "*" in pattern else [pattern]
-            for path in paths:
-                if os.path.exists(path):
-                    env["XAUTHORITY"] = path
-                    break
-            if "XAUTHORITY" in env:
-                break
-    return env
 
 
 def inject_keys(cmd, description):
@@ -229,7 +212,7 @@ def listen_touch_events(device, debug=False):
                                     f"last=({cur['last_x']},{cur['last_y']}), "
                                     f"x_seen={cur['xc']}, y_seen={cur['yc']}, "
                                     f"x_range=({cur['min_x']},{cur['max_x']}), "
-                                    f"y_range=({cur['min_y']},{cur['max_y']}))"
+                                    f"y_range=({cur['min_y']},{cur['max_y']})"
                                 )
                             inject_keys(zone["cmd"], zone["desc"])
                         elif debug:
@@ -295,7 +278,7 @@ def main():
     args = parser.parse_args()
 
     if not is_connected():
-        print("ERROR: LP998 is not connected via Bluetooth.", file=sys.stderr)
+        print(f"ERROR: LP998 ({MAC}) is not connected via Bluetooth.", file=sys.stderr)
         return 1
 
     reconnects = 0

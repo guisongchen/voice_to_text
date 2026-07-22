@@ -1,4 +1,5 @@
 import os
+import signal
 import socket
 import subprocess
 import sys
@@ -9,6 +10,12 @@ from .config import SOCKET_FILE, VENV_PYTHON, LOG_FILE
 
 
 def find_processes():
+    """Find voice-to-text daemon PIDs.
+
+    Matches only processes running the voice_to_text module (python -m
+    voice_to_text or the installed voice-to-text entry point), skipping
+    toggle scripts, editors, log viewers, and other incidental matches.
+    """
     pids = []
     try:
         result = subprocess.run(
@@ -24,15 +31,23 @@ def find_processes():
                 if len(parts) < 2:
                     continue
                 pid, cmdline = parts
+                # Positive match: must look like the daemon process.
+                is_daemon = (
+                    "-m voice_to_text" in cmdline
+                    or "voice_to_text.cli" in cmdline
+                    or cmdline.rstrip().endswith("/voice-to-text")
+                )
+                # Negative match: skip known non-daemon processes.
                 skip = (
                     "voice-to-text-t" in cmdline
                     or "toggle" in cmdline
                     or "listener" in cmdline
                     or "grep" in cmdline
+                    or "pgrep" in cmdline
                     or cmdline.startswith("/bin/bash")
                     or cmdline.startswith("bash ")
                 )
-                if not skip:
+                if is_daemon and not skip:
                     pids.append(pid)
     except (FileNotFoundError, subprocess.TimeoutExpired):
         pass
@@ -40,9 +55,36 @@ def find_processes():
 
 
 def kill_processes():
-    for pid in find_processes():
+    """Gracefully stop daemon processes: SIGTERM first, then SIGKILL after 3s."""
+    pids = find_processes()
+    if not pids:
+        return
+
+    # Phase 1: SIGTERM — allows graceful shutdown (speaker restore, socket cleanup).
+    for pid in pids:
         try:
-            os.kill(int(pid), 9)
+            os.kill(int(pid), signal.SIGTERM)
+        except (ProcessLookupError, PermissionError, ValueError):
+            pass
+
+    # Wait up to 3 seconds for processes to exit.
+    deadline = time.monotonic() + 3.0
+    while time.monotonic() < deadline:
+        alive = []
+        for pid in pids:
+            try:
+                os.kill(int(pid), 0)  # signal 0 = existence check
+                alive.append(pid)
+            except (ProcessLookupError, PermissionError, ValueError):
+                pass
+        if not alive:
+            return
+        time.sleep(0.1)
+
+    # Phase 2: SIGKILL any survivors.
+    for pid in pids:
+        try:
+            os.kill(int(pid), signal.SIGKILL)
         except (ProcessLookupError, PermissionError, ValueError):
             pass
 
@@ -99,7 +141,9 @@ def start_recording():
     starting_marker.touch()
 
     try:
-        with open(LOG_FILE, 'w') as log:
+        # Open log with owner-only permissions (may contain transcription previews).
+        log_fd = os.open(str(LOG_FILE), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(log_fd, 'w') as log:
             subprocess.Popen(
                 cmd,
                 stdout=log,

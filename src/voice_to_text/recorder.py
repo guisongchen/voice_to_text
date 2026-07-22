@@ -34,9 +34,13 @@ class AudioRecorder:
         if self.is_recording:
             return self._output_path
 
+        # Generate a unique temp file name.  We delete the file immediately
+        # because the WAV writer needs to create it from scratch; the name
+        # is still unique enough for our single-writer use case.
         fd, self._output_path = tempfile.mkstemp(suffix='.wav', prefix='vtt_')
         os.close(fd)
-        Path(self._output_path).unlink(missing_ok=True)
+        os.unlink(self._output_path)
+
         with self._lock:
             self._is_recording = True
             self._frames = []
@@ -100,9 +104,14 @@ class AudioRecorder:
     def _save_wav(self):
         with self._lock:
             frames_copy = b''.join(self._frames)
+            # Grab a local reference so cleanup() setting self.audio = None
+            # doesn't race with get_sample_size() below.
+            pa = self.audio
+        if pa is None:
+            return
         with wave.open(self._output_path, 'wb') as wf:
             wf.setnchannels(CHANNELS)
-            wf.setsampwidth(self.audio.get_sample_size(pyaudio.paInt16))
+            wf.setsampwidth(pa.get_sample_size(pyaudio.paInt16))
             wf.setframerate(SAMPLE_RATE)
             wf.writeframes(frames_copy)
 
@@ -128,7 +137,7 @@ class AudioRecorder:
             try:
                 self._stream.stop_stream()
                 self._stream.close()
-            except:
+            except Exception:
                 pass
         if self.audio:
             self.audio.terminate()

@@ -165,27 +165,39 @@ class AudioOutputController:
         return sinks
 
     def _list_sinks_wpctl(self) -> list[_SinkState]:
-        """Parse the Sinks section of `wpctl status`."""
+        """Parse the Sinks section of `wpctl status`.
+
+        wpctl uses box-drawing characters (│, ├, └) for tree structure.
+        Sink lines look like:
+            │      52. HDA NVidia Digital Stereo (HDMI)    [vol: 0.00 MUTED]
+            │  *   85. HUAWEI FreeGO                       [vol: 0.33]
+        """
         output = self._run(["wpctl", "status"])
         sinks: list[_SinkState] = []
         in_sinks = False
 
-        # Lines look like:
+        # After stripping tree-drawing chars and whitespace, sink lines look like:
         #   *   85. HUAWEI FreeGO                       [vol: 0.33]
         #       52. HDA NVidia Digital Stereo (HDMI)    [vol: 0.00 MUTED]
-        sink_re = re.compile(r"\s*\*?\s*(\d+)\.\s+.+?\[vol:")
+        sink_re = re.compile(r"\*?\s*(\d+)\.\s+.+?\[vol:")
 
         for raw_line in output.splitlines():
             stripped = raw_line.strip()
-            if stripped == "Sinks:":
+            if stripped in ("Sinks:", "├─ Sinks:", "└─ Sinks:"):
                 in_sinks = True
                 continue
             if not in_sinks:
                 continue
-            # End of the Sinks section when we hit another labelled section.
+            # End of the Sinks section when we hit another labelled section
+            # (e.g. "Sources:", "├─ Sources:") or an empty line after content.
             if stripped and not raw_line.startswith(" │") and not stripped.startswith("*"):
+                # Allow "│" alone (empty tree continuation line).
+                if stripped in ("│", ""):
+                    continue
                 break
-            match = sink_re.match(raw_line)
+            # Strip box-drawing prefix before regex matching.
+            cleaned = raw_line.lstrip(" │├└─\t")
+            match = sink_re.match(cleaned)
             if match:
                 sink_id = match.group(1)
                 muted = "MUTED" in raw_line.upper()
