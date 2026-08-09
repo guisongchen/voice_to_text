@@ -16,9 +16,11 @@ FINISH_BEEP_DURATION = 0.12
 
 # Text insertion
 XDOTOOL_TIMEOUT = 10
-# Text longer than this is inserted via clipboard (xclip + Ctrl+V)
-# instead of `xdotool type` to avoid command-line length limits.
-CLIPBOARD_THRESHOLD = 200
+# Keystroke delay for the xdotool-type fallback path (used only when no
+# clipboard tool is installed).  CJK input via xdotool remaps keycodes per
+# character and races with the receiving app; a larger delay reduces
+# dropped characters.  The primary clipboard path is unaffected.
+XDOTOOL_TYPE_DELAY_MS = 30
 
 # Model
 MODEL_SIZE_DEFAULT = 'Qwen3-ASR-1.7B'

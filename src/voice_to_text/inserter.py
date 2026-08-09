@@ -1,17 +1,20 @@
 import shutil
 import subprocess
+import time
 
-from .config import XDOTOOL_TIMEOUT, CLIPBOARD_THRESHOLD
+from .config import XDOTOOL_TIMEOUT, XDOTOOL_TYPE_DELAY_MS
 from .x11_env import get_x11_env
 
 
 class TextInserter:
-    """Insert text using xdotool.
+    """Insert text at the cursor.
 
-    Short text is typed directly via ``xdotool type``.  Text longer than
-    CLIPBOARD_THRESHOLD characters is inserted via the X11 clipboard
-    (xclip / xsel + Ctrl+V) to avoid command-line length limits and
-    xdotool's per-keystroke overhead.
+    Primary path: X11 clipboard (xclip/xsel) + Ctrl+V.  Pasting is atomic,
+    so no characters are lost.  ``xdotool type`` is kept only as a fallback
+    when no clipboard tool is installed — it is known to drop CJK
+    characters because it synthesises them by remapping spare keycodes and
+    reusing them for subsequent characters, racing with the receiving
+    application.
     """
 
     @staticmethod
@@ -34,15 +37,20 @@ class TextInserter:
 
         env = get_x11_env()
 
-        if len(text) > CLIPBOARD_THRESHOLD:
-            return TextInserter._insert_via_clipboard(text, env)
+        clip_tool = shutil.which("xclip") or shutil.which("xsel")
+        if clip_tool:
+            return TextInserter._insert_via_clipboard(text, env, clip_tool)
+
+        print("  ⚠ No clipboard tool (xclip/xsel), falling back to xdotool type")
         return TextInserter._insert_via_xdotool(text, env)
 
     @staticmethod
     def _insert_via_xdotool(text, env):
+        """Type text keystroke-by-keystroke (fallback; may drop CJK chars)."""
         try:
             subprocess.run(
-                ['xdotool', 'type', '--clearmodifiers', '--', text],
+                ['xdotool', 'type', '--clearmodifiers',
+                 '--delay', str(XDOTOOL_TYPE_DELAY_MS), '--', text],
                 check=True,
                 timeout=XDOTOOL_TIMEOUT,
                 env=env
@@ -56,32 +64,48 @@ class TextInserter:
             return False
 
     @staticmethod
-    def _insert_via_clipboard(text, env):
-        """Insert long text via X11 clipboard (xclip or xsel + Ctrl+V)."""
-        clip_tool = shutil.which("xclip") or shutil.which("xsel")
-        if not clip_tool:
-            # Fall back to xdotool type even for long text.
-            print("  ⚠ No clipboard tool (xclip/xsel), using xdotool type")
-            return TextInserter._insert_via_xdotool(text, env)
-
+    def _clipboard_read(clip_tool, env):
+        """Best-effort read of the current clipboard contents."""
         try:
             if "xclip" in clip_tool:
-                subprocess.run(
-                    ["xclip", "-selection", "clipboard"],
-                    input=text.encode("utf-8"),
-                    check=True, timeout=5, env=env,
-                )
+                cmd = [clip_tool, "-selection", "clipboard", "-out"]
             else:
-                subprocess.run(
-                    ["xsel", "--clipboard", "--input"],
-                    input=text.encode("utf-8"),
-                    check=True, timeout=5, env=env,
-                )
+                cmd = [clip_tool, "--clipboard", "--output"]
+            result = subprocess.run(
+                cmd, capture_output=True, timeout=2, env=env
+            )
+            return result.stdout if result.returncode == 0 else None
+        except Exception:
+            return None
+
+    @staticmethod
+    def _clipboard_write(clip_tool, data, env):
+        if "xclip" in clip_tool:
+            cmd = [clip_tool, "-selection", "clipboard", "-in"]
+        else:
+            cmd = [clip_tool, "--clipboard", "--input"]
+        subprocess.run(cmd, input=data, check=True, timeout=5, env=env)
+
+    @staticmethod
+    def _insert_via_clipboard(text, env, clip_tool):
+        """Paste text via the X11 clipboard, preserving its previous contents."""
+        previous = TextInserter._clipboard_read(clip_tool, env)
+        try:
+            TextInserter._clipboard_write(clip_tool, text.encode("utf-8"), env)
             subprocess.run(
                 ["xdotool", "key", "--clearmodifiers", "ctrl+v"],
                 check=True, timeout=XDOTOOL_TIMEOUT, env=env,
             )
+            # Give the target application a moment to finish reading the
+            # selection from the clipboard owner before restoring it.
+            time.sleep(0.5)
             return True
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
             print(f"  ✗ Clipboard insertion failed: {e}, falling back to xdotool type")
             return TextInserter._insert_via_xdotool(text, env)
+        finally:
+            if previous is not None:
+                try:
+                    TextInserter._clipboard_write(clip_tool, previous, env)
+                except Exception:
+                    pass
