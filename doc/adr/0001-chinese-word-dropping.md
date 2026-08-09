@@ -31,7 +31,8 @@ wpctl set-volume @DEFAULT_AUDIO_SOURCE@ 1.0   # 0.50 → 1.00
 **修复**：
 
 1. 安装 xclip：`sudo apt install xclip`
-2. `inserter.py` 改为所有文本一律走剪贴板 + Ctrl+V（原子粘贴，杜绝丢字），粘贴后恢复原剪贴板内容；`xdotool type` 仅作兜底并加 `--delay 30ms`；删除 `CLIPBOARD_THRESHOLD` 配置。
+2. `inserter.py` 改为所有文本一律走剪贴板 + 粘贴快捷键（原子粘贴，杜绝丢字），粘贴后恢复原剪贴板内容；`xdotool type` 仅作兜底并加 `--delay 30ms`；删除 `CLIPBOARD_THRESHOLD` 配置。
+3. 粘贴快捷键按焦点窗口类型选择：终端模拟器（gnome-terminal、kitty、konsole 等，`TERMINAL_WM_CLASSES`）用 **Ctrl+Shift+V**（终端里 Ctrl+V 被 readline 占用为 quoted-insert），其余 GUI 应用用 **Ctrl+V**；通过 `xdotool getactivewindow` + `xprop WM_CLASS` 探测。
 
 **验证**：含生僻字（饕餮龍龘）和中英混排的测试文本插入一字不差，原剪贴板内容完好恢复。
 
@@ -40,7 +41,7 @@ wpctl set-volume @DEFAULT_AUDIO_SOURCE@ 1.0   # 0.50 → 1.00
 | 根因 | 层面 | 修复 | 性质 |
 |---|---|---|---|
 | 麦克风增益 0.50（立方映射 ≈ -18 dB） | 采集 | `wpctl set-volume 1.0` | 系统配置，无代码改动 |
-| xdotool type CJK 键码复用竞态 | 插入 | 一律剪贴板粘贴 + 恢复；安装 xclip | 代码 + 依赖 |
+| xdotool type CJK 键码复用竞态 | 插入 | 一律剪贴板粘贴 + 恢复；安装 xclip；终端窗口用 Ctrl+Shift+V | 代码 + 依赖 |
 
 ## 后果
 
@@ -55,6 +56,7 @@ wpctl set-volume @DEFAULT_AUDIO_SOURCE@ 1.0   # 0.50 → 1.00
 - WirePlumber 会持久化麦克风音量，但其他混音器工具可能改动；音量 1.0 后无硬件余量，近距离大声说话需关注削波。
 - 若 HUAWEI FreeLace Pro 蓝牙耳机成为默认输入源，电平与质量特性需单独确认。
 - xclip 成为运行时依赖；未安装时退回 xdotool type（有丢字风险），守护进程日志会打印 "falling back to xdotool type" 警告。
+- 未列入 `TERMINAL_WM_CLASSES` 的终端模拟器会收到 Ctrl+V 导致粘贴失败；遇到新终端时将其 WM_CLASS 加入配置即可。
 
 **排查方法论（供日后参考）**
 

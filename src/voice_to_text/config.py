@@ -21,6 +21,15 @@ XDOTOOL_TIMEOUT = 10
 # character and races with the receiving app; a larger delay reduces
 # dropped characters.  The primary clipboard path is unaffected.
 XDOTOOL_TYPE_DELAY_MS = 30
+# WM_CLASS values (lowercased) of terminal emulators where Ctrl+V is
+# swallowed by the shell/readline (quoted-insert) and the emulator's paste
+# shortcut is Ctrl+Shift+V instead.
+TERMINAL_WM_CLASSES = {
+    'gnome-terminal-server', 'gnome-terminal', 'org.gnome.terminal',
+    'xterm', 'uxterm', 'kitty', 'alacritty', 'konsole', 'tilix',
+    'terminator', 'wezterm', 'foot', 'st', 'urxvt', 'guake', 'tilda',
+    'xfce4-terminal', 'lxterminal', 'mate-terminal', 'ptyxis', 'kgx',
+}
 
 # Model
 MODEL_SIZE_DEFAULT = 'Qwen3-ASR-1.7B'

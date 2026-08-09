@@ -2,7 +2,7 @@ import shutil
 import subprocess
 import time
 
-from .config import XDOTOOL_TIMEOUT, XDOTOOL_TYPE_DELAY_MS
+from .config import XDOTOOL_TIMEOUT, XDOTOOL_TYPE_DELAY_MS, TERMINAL_WM_CLASSES
 from .x11_env import get_x11_env
 
 
@@ -64,6 +64,33 @@ class TextInserter:
             return False
 
     @staticmethod
+    def _paste_shortcut(env):
+        """Return the paste shortcut appropriate for the focused window.
+
+        Terminal emulators intercept Ctrl+Shift+V as paste; Ctrl+V there is
+        passed to the shell/readline as quoted-insert and pastes nothing.
+        GUI applications (and terminal apps that handle Ctrl+V themselves,
+        like VS Code or Claude Code) use Ctrl+V.
+        """
+        try:
+            wid = subprocess.run(
+                ['xdotool', 'getactivewindow'],
+                capture_output=True, text=True, timeout=2, env=env,
+            ).stdout.strip()
+            if wid:
+                out = subprocess.run(
+                    ['xprop', '-id', wid, 'WM_CLASS'],
+                    capture_output=True, text=True, timeout=2, env=env,
+                ).stdout
+                classes = {c.strip().strip('"').lower() for c in
+                           out.split('=', 1)[1].split(',')} if '=' in out else set()
+                if classes & TERMINAL_WM_CLASSES:
+                    return 'ctrl+shift+v'
+        except Exception:
+            pass
+        return 'ctrl+v'
+
+    @staticmethod
     def _clipboard_read(clip_tool, env):
         """Best-effort read of the current clipboard contents."""
         try:
@@ -92,8 +119,9 @@ class TextInserter:
         previous = TextInserter._clipboard_read(clip_tool, env)
         try:
             TextInserter._clipboard_write(clip_tool, text.encode("utf-8"), env)
+            paste_key = TextInserter._paste_shortcut(env)
             subprocess.run(
-                ["xdotool", "key", "--clearmodifiers", "ctrl+v"],
+                ["xdotool", "key", "--clearmodifiers", paste_key],
                 check=True, timeout=XDOTOOL_TIMEOUT, env=env,
             )
             # Give the target application a moment to finish reading the
