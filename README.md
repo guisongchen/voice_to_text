@@ -126,6 +126,16 @@ voice-to-text -m Qwen3-ASR-1.7B  # Request a specific ASRCore model
 
 By default the daemon asks ASRCore to use whichever model is already loaded, falling back to `qwen3-asr-0.6b` if none is loaded.
 
+### GPU memory lifecycle
+
+The ASR model stays loaded in ASRCore (holding VRAM) after transcription. To prevent VRAM leakage, the `voice-to-text.service` unit declares:
+
+```ini
+ExecStopPost=-/usr/bin/curl -sf --max-time 10 --unix-socket /tmp/asr_core.sock -X POST http://localhost/unload
+```
+
+systemd runs this **on every stop path** — `systemctl --user stop`, idle-timeout self-exit, or a crash/`kill -9` — so the ASR model is always unloaded and VRAM freed when the daemon goes down. The leading `-` ignores failures (e.g. ASRCore not running), and `/unload` is idempotent. The ASRCore daemon itself keeps running; only the model is unloaded, and it lazy-loads again on the next transcription.
+
 ## Troubleshooting
 
 ### Text not appearing
