@@ -31,6 +31,13 @@ TERMINAL_WM_CLASSES = {
     'xfce4-terminal', 'lxterminal', 'mate-terminal', 'ptyxis', 'kgx',
 }
 
+# Wayland insertion via ydotool (kernel /dev/uinput; compositor-agnostic,
+# reaches native Wayland and XWayland windows alike).  ydotool uploads one
+# keymap covering the whole string before emitting events, so CJK input
+# does not race the way xdotool's per-character remapping does.
+YDOTOOL_TYPE_DELAY_MS = 25
+YDOTOOL_TIMEOUT = 10  # base seconds; scaled up for long texts
+
 # Model
 MODEL_SIZE_DEFAULT = 'Qwen3-ASR-1.7B'
 MODEL_CHOICES = ['qwen3-asr-0.6b', 'Qwen3-ASR-1.7B']

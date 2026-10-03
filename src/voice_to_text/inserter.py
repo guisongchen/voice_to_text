@@ -1,21 +1,44 @@
+import os
 import shutil
 import subprocess
 import time
 
-from .config import XDOTOOL_TIMEOUT, XDOTOOL_TYPE_DELAY_MS, TERMINAL_WM_CLASSES
+from .config import (
+    XDOTOOL_TIMEOUT,
+    XDOTOOL_TYPE_DELAY_MS,
+    YDOTOOL_TIMEOUT,
+    YDOTOOL_TYPE_DELAY_MS,
+    TERMINAL_WM_CLASSES,
+)
 from .x11_env import get_x11_env
 
 
 class TextInserter:
     """Insert text at the cursor.
 
-    Primary path: X11 clipboard (xclip/xsel) + Ctrl+V.  Pasting is atomic,
+    Wayland sessions: xclip/xsel write the XWayland clipboard (mutter
+    bridges X11 selections to Wayland automatically, so native Wayland
+    apps paste it), then ``ydotool key`` sends Shift+Insert — the
+    near-universal paste shortcut honoured by VTE terminals, GTK/Qt,
+    browsers and Electron alike.  Both CLIPBOARD and PRIMARY selections
+    are written, because VTE terminals paste PRIMARY on Shift+Insert.
+    wl-clipboard is deliberately NOT used: it pops up a 1x1
+    focus-grabbing window per call (flickering NVIDIA eglstreams
+    desktops) and hangs when that window is never focused.  ydotool's
+    own ``type`` is the fallback — upstream it is ASCII-only
+    (issue #275), so CJK text needs the clipboard path.
+
+    X11 sessions: X11 clipboard (xclip/xsel) + Ctrl+V.  Pasting is atomic,
     so no characters are lost.  ``xdotool type`` is kept only as a fallback
     when no clipboard tool is installed — it is known to drop CJK
     characters because it synthesises them by remapping spare keycodes and
     reusing them for subsequent characters, racing with the receiving
     application.
     """
+
+    @staticmethod
+    def _is_wayland():
+        return os.environ.get("XDG_SESSION_TYPE", "").lower() == "wayland"
 
     @staticmethod
     def check_xdotool():
@@ -35,6 +58,18 @@ class TextInserter:
             print("  (No text to insert)")
             return False
 
+        if TextInserter._is_wayland():
+            clip_tool = shutil.which("xclip") or shutil.which("xsel")
+            if clip_tool and shutil.which("ydotool"):
+                return TextInserter._insert_via_wayland_bridge(text, clip_tool)
+            if shutil.which("ydotool"):
+                print("  ⚠ No clipboard tool (xclip/xsel); using ydotool "
+                      "type (ASCII-only, upstream issue #275)")
+                return TextInserter._insert_via_ydotool(text)
+            print("  ⚠ Wayland session but neither xclip/xsel nor ydotool "
+                  "installed; falling back to X11 path "
+                  "(only reaches XWayland windows)")
+
         env = get_x11_env()
 
         clip_tool = shutil.which("xclip") or shutil.which("xsel")
@@ -43,6 +78,74 @@ class TextInserter:
 
         print("  ⚠ No clipboard tool (xclip/xsel), falling back to xdotool type")
         return TextInserter._insert_via_xdotool(text, env)
+
+    # Shift+Insert as raw keycode events (42=LEFTSHIFT, 110=INSERT).
+    # ydotool 1.0.x `key` accepts ONLY raw "<code>:<pressed>" events;
+    # symbolic names (shift+insert) are silently ignored, while Ubuntu's
+    # older 0.1.8 client does the opposite and mangles raw codes into
+    # digit keypresses.  The installed 1.0.4 in /usr/local/bin takes raw.
+    _SHIFT_INSERT = ['42:1', '110:1', '110:0', '42:0']
+
+    @staticmethod
+    def _insert_via_wayland_bridge(text, clip_tool):
+        """Paste text via the XWayland clipboard bridge + Shift+Insert,
+        preserving the previous selection contents.
+
+        Both selections are written: most toolkits paste CLIPBOARD on
+        Shift+Insert, but VTE terminals (GNOME Terminal) and xterm-style
+        emulators paste PRIMARY — writing only CLIPBOARD there pastes
+        whatever PRIMARY previously held.
+        """
+        env = get_x11_env()
+        previous = TextInserter._clipboard_read(clip_tool, env)
+        previous_primary = TextInserter._clipboard_read(
+            clip_tool, env, selection="primary")
+        try:
+            TextInserter._clipboard_write(clip_tool, text.encode("utf-8"), env)
+            TextInserter._clipboard_write(clip_tool, text.encode("utf-8"),
+                                          env, selection="primary")
+            subprocess.run(
+                ["ydotool", "key"] + TextInserter._SHIFT_INSERT,
+                check=True, timeout=YDOTOOL_TIMEOUT,
+            )
+            # Give the target application a moment to read the selection
+            # from the clipboard owner before restoring it.
+            time.sleep(0.5)
+            return True
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+            print(f"  ✗ Wayland clipboard insertion failed: {e}, "
+                  "falling back to ydotool type")
+            return TextInserter._insert_via_ydotool(text)
+        finally:
+            for data, selection in ((previous, "clipboard"),
+                                    (previous_primary, "primary")):
+                if data is not None:
+                    try:
+                        TextInserter._clipboard_write(
+                            clip_tool, data, env, selection=selection)
+                    except Exception:
+                        pass
+
+    @staticmethod
+    def _insert_via_ydotool(text):
+        """Type text via /dev/uinput (ydotoold must be running)."""
+        # Scale the timeout with text length so long dictations are not
+        # cut off: worst case is delay per char plus daemon overhead.
+        timeout = max(YDOTOOL_TIMEOUT,
+                      len(text) * YDOTOOL_TYPE_DELAY_MS / 1000 * 3 + 5)
+        try:
+            subprocess.run(
+                ['ydotool', 'type', '--key-delay', str(YDOTOOL_TYPE_DELAY_MS),
+                 '--', text],
+                check=True, timeout=timeout,
+            )
+            return True
+        except subprocess.CalledProcessError as e:
+            print(f"  ✗ Error inserting text via ydotool: {e}")
+            return False
+        except subprocess.TimeoutExpired:
+            print("  ✗ Error: ydotool timed out")
+            return False
 
     @staticmethod
     def _insert_via_xdotool(text, env):
@@ -91,13 +194,16 @@ class TextInserter:
         return 'ctrl+v'
 
     @staticmethod
-    def _clipboard_read(clip_tool, env):
-        """Best-effort read of the current clipboard contents."""
+    def _clipboard_read(clip_tool, env, selection="clipboard"):
+        """Best-effort read of the current selection contents."""
         try:
             if "xclip" in clip_tool:
-                cmd = [clip_tool, "-selection", "clipboard", "-out"]
+                cmd = [clip_tool, "-selection", selection, "-out"]
             else:
-                cmd = [clip_tool, "--clipboard", "--output"]
+                if selection == "primary":
+                    cmd = [clip_tool, "--primary", "--output"]
+                else:
+                    cmd = [clip_tool, "--clipboard", "--output"]
             result = subprocess.run(
                 cmd, capture_output=True, timeout=2, env=env
             )
@@ -106,11 +212,14 @@ class TextInserter:
             return None
 
     @staticmethod
-    def _clipboard_write(clip_tool, data, env):
+    def _clipboard_write(clip_tool, data, env, selection="clipboard"):
         if "xclip" in clip_tool:
-            cmd = [clip_tool, "-selection", "clipboard", "-in"]
+            cmd = [clip_tool, "-selection", selection, "-in"]
         else:
-            cmd = [clip_tool, "--clipboard", "--input"]
+            if selection == "primary":
+                cmd = [clip_tool, "--primary", "--input"]
+            else:
+                cmd = [clip_tool, "--clipboard", "--input"]
         subprocess.run(cmd, input=data, check=True, timeout=5, env=env)
 
     @staticmethod
