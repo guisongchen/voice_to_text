@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """LP998 touch zone listener daemon.
 
-Maps UGREEN-LP998 touch zones to keyboard shortcuts via xdotool.
-The LP998 is a Bluetooth presenter remote with a touchpad-based ring
-(5 touch zones) plus 2 physical buttons at the bottom.
+Maps UGREEN-LP998 touch zones to keyboard shortcuts — via ydotool on
+Wayland sessions, xdotool on X11. The LP998 is a Bluetooth presenter
+remote with a touchpad-based ring (5 touch zones) plus 2 physical
+buttons at the bottom.
 
 Both the touchpad and Consumer Control evdev devices are grabbed so
 the system (desktop environment) cannot intercept button events.
@@ -16,6 +17,7 @@ Configuration:
 import argparse
 import math
 import os
+import shutil
 import subprocess
 import sys
 import threading
@@ -35,13 +37,17 @@ ZONE_THRESHOLD = 75
 TOUCH_DEBOUNCE_SECONDS = 0.12
 CC_DEBOUNCE_SECONDS = 0.2
 
+# Each zone carries both an xdotool command (X11) and a ydotool key
+# sequence (Wayland). ydotool 1.0.x `key` accepts only raw
+# "<code>:<pressed>" events; key codes are from linux/input-event-codes.h
+# (ESC=1, ENTER=28, LCTRL=29, LALT=56, UP=103, DOWN=108, RIGHT=106).
 ZONES = [
-    {"name": "ring_top",    "center": (500, 350), "cmd": ["xdotool", "key", "Up"],             "desc": "Ring Top -> Up"},
-    {"name": "ring_bottom", "center": (500, 620), "cmd": ["xdotool", "key", "Down"],           "desc": "Ring Bottom -> Down"},
-    {"name": "ring_left",   "center": (300, 292), "cmd": ["xdotool", "key", "alt+Right"],      "desc": "Ring Left -> Alt+Right"},
-    {"name": "ring_right",  "center": (700, 297), "cmd": ["xdotool", "key", "ctrl+Right"],     "desc": "Ring Right -> Ctrl+Right"},
-    {"name": "ring_center", "center": (500, 400), "cmd": ["xdotool", "key", "Return"],         "desc": "Ring Center -> Enter"},
-    {"name": "left_button", "center": (512, 833), "cmd": ["xdotool", "key", "Escape"],         "desc": "Left Button -> Escape"},
+    {"name": "ring_top",    "center": (500, 350), "cmd": ["xdotool", "key", "Up"],        "ydotool": ["103:1", "103:0"],                 "desc": "Ring Top -> Up"},
+    {"name": "ring_bottom", "center": (500, 620), "cmd": ["xdotool", "key", "Down"],      "ydotool": ["108:1", "108:0"],                 "desc": "Ring Bottom -> Down"},
+    {"name": "ring_left",   "center": (300, 292), "cmd": ["xdotool", "key", "alt+Right"], "ydotool": ["56:1", "106:1", "106:0", "56:0"], "desc": "Ring Left -> Alt+Right"},
+    {"name": "ring_right",  "center": (700, 297), "cmd": ["xdotool", "key", "ctrl+Right"],"ydotool": ["29:1", "106:1", "106:0", "29:0"], "desc": "Ring Right -> Ctrl+Right"},
+    {"name": "ring_center", "center": (500, 400), "cmd": ["xdotool", "key", "Return"],    "ydotool": ["28:1", "28:0"],                   "desc": "Ring Center -> Enter"},
+    {"name": "left_button", "center": (512, 833), "cmd": ["xdotool", "key", "Escape"],    "ydotool": ["1:1", "1:0"],                     "desc": "Left Button -> Escape"},
 ]
 
 # Consumer Control key mappings.
@@ -93,8 +99,36 @@ def is_connected():
     return "boolean true" in result.stdout
 
 
-def inject_keys(cmd, description):
-    """Run xdotool to inject a key sequence (non-blocking)."""
+def is_wayland():
+    return os.environ.get("XDG_SESSION_TYPE", "").lower() == "wayland"
+
+
+def inject_keys(cmd, description, ydotool_args=None):
+    """Inject a key sequence.
+
+    On Wayland sessions xdotool can only reach XWayland clients, so the
+    ydotool raw-key sequence is used instead (uinput, works everywhere).
+    Falls back to xdotool if ydotool is unavailable.
+    """
+    if is_wayland() and ydotool_args:
+        if shutil.which("ydotool"):
+            # The ydotool client defaults to /run/user/<uid>/.ydotool_socket,
+            # but the daemon on this machine serves /run/ydotoold/socket
+            # (same as voice-to-text.service's YDOTOOL_SOCKET).
+            env = dict(os.environ)
+            env.setdefault("YDOTOOL_SOCKET", "/run/ydotoold/socket")
+            result = subprocess.run(
+                ["ydotool", "key"] + ydotool_args,
+                capture_output=True, text=True, timeout=5, env=env,
+            )
+            if result.returncode == 0:
+                print(f"Injected (ydotool): {description}")
+            else:
+                print(f"ERROR injecting {description} via ydotool: "
+                      f"{result.stderr.strip()}", file=sys.stderr)
+            return
+        print("⚠ Wayland session but ydotool not found; "
+              "falling back to xdotool (XWayland only)", file=sys.stderr)
     env = get_x11_env()
     subprocess.Popen(
         cmd,
@@ -234,7 +268,7 @@ def listen_touch_events(device, debug=False):
                                     f"x_range=({cur['min_x']},{cur['max_x']}), "
                                     f"y_range=({cur['min_y']},{cur['max_y']})"
                                 )
-                            inject_keys(zone["cmd"], zone["desc"])
+                            inject_keys(zone["cmd"], zone["desc"], zone.get("ydotool"))
                         elif debug:
                             print(
                                 "[debug] Unknown touch: "
