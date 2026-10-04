@@ -19,6 +19,7 @@ System-wide voice input for Linux. Press a shortcut, speak, press again — tran
 - Ubuntu/Linux with X11
 - xdotool (`sudo apt install xdotool`)
 - PortAudio (`sudo apt install portaudio19-dev`)
+- ALSA utils (`sudo apt install alsa-utils`) — beeps are played with `aplay`
 - PulseAudio / PipeWire / ALSA audio control (`pactl`, `wpctl`, or `amixer`; usually pre-installed)
 - [ASRCore](../asr_core) installed as a local dependency
 
@@ -159,6 +160,27 @@ Model files are owned by ASRCore. Ensure the model is available in ASRCore's mod
 systemctl --user status asr-core
 journalctl --user -fu asr-core
 ```
+
+### No beep sound (recording works, but no audio cue)
+Beeps are played via `aplay`, which targets PipeWire's **default sink**. If the
+default sink points at the wrong output (e.g. after an OS upgrade flipped a USB
+dongle from analog to its digital `iec958` profile), playback "succeeds" silently.
+
+Check and fix:
+```bash
+pactl get-default-sink          # must be the device your speakers are on
+pactl list short sinks
+pactl set-default-sink <name>
+```
+
+On this machine the intended routing is:
+- **Output** → GPU HDMI (monitor speakers); Bluetooth A2DP takes over
+  automatically when a headset connects (WirePlumber stock behavior)
+- **Input** → UGREEN USB dongle, pinned to input-only so its (unusable)
+  output can never be selected:
+  `pactl set-card-profile alsa_card.usb-JinAudio_UGREEN_USB_MIC-... input:analog-stereo`
+
+WirePlumber persists these choices across reboots.
 
 ### Speakers not muted or not restored after recording
 - Ensure one of `pactl`, `wpctl`, or `amixer` is installed and on your `$PATH`

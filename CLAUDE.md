@@ -95,3 +95,8 @@ The dashboard was moved into ASRCore. Open http://localhost:8125 to:
 - The LP998 listener is the only hardware-specific component.
 - Recordings are archived to `~/voice_recordings/` for future model training.
 - Use `journalctl --user -fu voice-to-text -u asr-core` for live logs.
+- Beeps use `aplay` → PipeWire default sink (failures are swallowed by design,
+  so a misrouted default sink means silent beeps, not errors). Intended routing
+  on this machine: output = GPU HDMI (BT auto-takes-over on connect), input =
+  UGREEN dongle pinned to `input:analog-stereo` profile (its output is
+  unusable and must stay hidden). See README "No beep sound".
