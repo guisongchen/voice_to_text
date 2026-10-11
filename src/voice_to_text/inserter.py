@@ -113,9 +113,26 @@ class TextInserter:
             time.sleep(0.5)
             return True
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-            print(f"  ✗ Wayland clipboard insertion failed: {e}, "
-                  "falling back to ydotool type")
-            return TextInserter._insert_via_ydotool(text)
+            # Xwayland runs on-demand and respawns with a fresh auth cookie;
+            # the env captured above may already be stale. Re-resolve and
+            # retry once before falling back to the ASCII-only ydotool path
+            # (which drops CJK text).
+            env = get_x11_env()
+            try:
+                TextInserter._clipboard_write(clip_tool, text.encode("utf-8"), env)
+                TextInserter._clipboard_write(clip_tool, text.encode("utf-8"),
+                                              env, selection="primary")
+                subprocess.run(
+                    ["ydotool", "key"] + TextInserter._SHIFT_INSERT,
+                    check=True, timeout=YDOTOOL_TIMEOUT,
+                )
+                time.sleep(0.5)
+                print("  ✓ Clipboard paste succeeded on retry (fresh XAUTHORITY)")
+                return True
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+                print(f"  ✗ Wayland clipboard insertion failed: {e}, "
+                      "falling back to ydotool type")
+                return TextInserter._insert_via_ydotool(text)
         finally:
             for data, selection in ((previous, "clipboard"),
                                     (previous_primary, "primary")):

@@ -45,6 +45,25 @@ def _play_beep(wav_path):
         pass
 
 
+def _emit_osd_signal(state):
+    """Fire-and-forget D-Bus signal for the GNOME Shell OSD extension.
+
+    state: 'started' | 'stopped'. No-op when nothing listens on the bus
+    (extension not installed/enabled); failures are swallowed by design,
+    mirroring the beep behaviour.
+    """
+    try:
+        subprocess.Popen(
+            ["gdbus", "emit", "--session",
+             "--object-path", "/dev/voice_to_text",
+             "--signal", "dev.voice_to_text.Recorder.StateChanged", state],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except Exception:
+        pass
+
+
 class VoiceToTextService:
     """Persistent voice-to-text daemon with idle timeout."""
 
@@ -149,6 +168,7 @@ class VoiceToTextService:
             with self._lock:
                 self._current_audio_file = audio_file
                 self._recording_start_time = time.time()
+            _emit_osd_signal('started')
             _play_beep(BEEP_START)
             with self._lock:
                 still_recording = self._state == STATE_RECORDING
@@ -176,6 +196,7 @@ class VoiceToTextService:
                 print("  🔊 Speakers restored")
 
         duration = time.time() - start_time if start_time else 0
+        _emit_osd_signal('stopped')
         _play_beep(BEEP_FINISH)
         print(f"\n⏹  Stopped (duration: {duration:.1f}s)")
 

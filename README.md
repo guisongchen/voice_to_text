@@ -85,6 +85,29 @@ While recording, the daemon automatically mutes all audio outputs (`pactl`, `wpc
 
 This behavior is controlled by `MUTE_SPEAKERS_DURING_RECORDING` in `src/voice_to_text/config.py` (default: `True`).
 
+### Visual OSD (GNOME Shell extension)
+
+In addition to the audio beeps, the daemon emits a session D-Bus signal
+(`dev.voice_to_text.Recorder.StateChanged`, payload `started`/`stopped`) on every
+recording toggle. The bundled GNOME Shell extension `voice-to-text-osd@ccc`
+(source in `gnome-extension/`) listens for it and shows a large centered OSD
+icon (red mic = start, green stop = end), which also works over fullscreen
+windows. GNOME's built-in microphone privacy indicator covers the persistent
+"currently recording" state in the top bar.
+
+Install (once):
+
+```bash
+mkdir -p ~/.local/share/gnome-shell/extensions
+ln -sfn "$PWD/gnome-extension/voice-to-text-osd@ccc" \
+        ~/.local/share/gnome-shell/extensions/voice-to-text-osd@ccc
+gnome-extensions enable voice-to-text-osd@ccc
+# Wayland: log out and back in once so GNOME Shell discovers the extension
+```
+
+The extension is optional: with no listener on the bus the signal emission is
+a harmless no-op.
+
 ### Bluetooth / LP998 Touch Ring
 
 The LP998 listener is managed by systemd:
