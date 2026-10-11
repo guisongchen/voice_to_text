@@ -31,6 +31,29 @@ STATE_IDLE = 'idle'
 STATE_RECORDING = 'recording'
 STATE_TRANSCRIBING = 'transcribing'
 
+_opencc = None
+
+
+def _to_simplified_chinese(text):
+    """Convert Traditional Chinese in text to Simplified; non-Chinese untouched.
+
+    Whisper often emits Traditional characters for Mandarin speech. t2s is a
+    pure character-set conversion (no phrase substitution), already-Simplified
+    text and English pass through unchanged. Falls back to the original text
+    if opencc is unavailable.
+    """
+    global _opencc
+    if not text:
+        return text
+    try:
+        if _opencc is None:
+            from opencc import OpenCC
+            _opencc = OpenCC('t2s')
+        return _opencc.convert(text)
+    except Exception as e:
+        print(f"  ⚠ OpenCC conversion failed, using original text: {e}")
+        return text
+
 
 def _play_beep(wav_path):
     """Play a WAV file through aplay and wait for it to finish."""
@@ -357,7 +380,7 @@ class VoiceToTextService:
         try:
             print("🔄 Transcribing via ASRCore...")
             result = self._asr_client.transcribe(audio_file, model_name=self.model_size)
-            text = result.get("text", "").strip()
+            text = _to_simplified_chinese(result.get("text", "").strip())
 
             if not text:
                 print("  ⚠ No speech detected")
