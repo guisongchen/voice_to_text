@@ -11,6 +11,7 @@ System-wide voice input for Linux. Press a shortcut, speak, press again — tran
 - **Fully offline** — ASRCore loads models from local storage, no network needed
 - **Bluetooth support** — compatible with UGREEN LP998 touch ring
 - **Safe IPC** — Unix domain socket communication
+- **Speaker-aware recording** — automatically mutes speakers while recording to prevent audio feedback
 
 ## Requirements
 
@@ -18,6 +19,8 @@ System-wide voice input for Linux. Press a shortcut, speak, press again — tran
 - Ubuntu/Linux with X11
 - xdotool (`sudo apt install xdotool`)
 - PortAudio (`sudo apt install portaudio19-dev`)
+- ALSA utils (`sudo apt install alsa-utils`) — beeps are played with `aplay`
+- PulseAudio / PipeWire / ALSA audio control (`pactl`, `wpctl`, or `amixer`; usually pre-installed)
 - [ASRCore](../asr_core) installed as a local dependency
 
 > GPU/CUDA are only required by ASRCore; this daemon itself is CPU-only.
@@ -76,6 +79,35 @@ dconf write /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings "['
 - Speak
 - Press `Alt+Shift+R` again to stop, transcribe, and insert text (hear single beep)
 
+### Speaker mute behavior
+
+While recording, the daemon automatically mutes all audio outputs (`pactl`, `wpctl`, or `amixer`) to prevent music, notifications, or other sounds from leaking into the microphone. The previous mute state is restored when recording stops. If no audio control tool is available, recording still works normally.
+
+This behavior is controlled by `MUTE_SPEAKERS_DURING_RECORDING` in `src/voice_to_text/config.py` (default: `True`).
+
+### Visual OSD (GNOME Shell extension)
+
+In addition to the audio beeps, the daemon emits a session D-Bus signal
+(`dev.voice_to_text.Recorder.StateChanged`, payload `started`/`stopped`) on every
+recording toggle. The bundled GNOME Shell extension `voice-to-text-osd@ccc`
+(source in `gnome-extension/`) listens for it and shows a large centered OSD
+icon (red mic = start, green stop = end), which also works over fullscreen
+windows. GNOME's built-in microphone privacy indicator covers the persistent
+"currently recording" state in the top bar.
+
+Install (once):
+
+```bash
+mkdir -p ~/.local/share/gnome-shell/extensions
+ln -sfn "$PWD/gnome-extension/voice-to-text-osd@ccc" \
+        ~/.local/share/gnome-shell/extensions/voice-to-text-osd@ccc
+gnome-extensions enable voice-to-text-osd@ccc
+# Wayland: log out and back in once so GNOME Shell discovers the extension
+```
+
+The extension is optional: with no listener on the bus the signal emission is
+a harmless no-op.
+
 ### Bluetooth / LP998 Touch Ring
 
 The LP998 listener is managed by systemd:
@@ -92,6 +124,7 @@ voice_to_text/
 │   ├── cli.py               # CLI entry point
 │   ├── config.py            # Constants
 │   ├── recorder.py          # AudioRecorder (no ML imports)
+│   ├── audio_control.py     # Speaker mute/restore during recording
 │   ├── inserter.py          # xdotool text insertion
 │   ├── service.py           # Persistent daemon with socket IPC
 │   └── toggle.py            # Start/stop toggle logic
@@ -118,6 +151,16 @@ voice-to-text -m Qwen3-ASR-1.7B  # Request a specific ASRCore model
 
 By default the daemon asks ASRCore to use whichever model is already loaded, falling back to `qwen3-asr-0.6b` if none is loaded.
 
+### GPU memory lifecycle
+
+The ASR model stays loaded in ASRCore (holding VRAM) after transcription. To prevent VRAM leakage, the `voice-to-text.service` unit declares:
+
+```ini
+ExecStopPost=-/usr/bin/curl -sf --max-time 10 --unix-socket /tmp/asr_core.sock -X POST http://localhost/unload
+```
+
+systemd runs this **on every stop path** — `systemctl --user stop`, idle-timeout self-exit, or a crash/`kill -9` — so the ASR model is always unloaded and VRAM freed when the daemon goes down. The leading `-` ignores failures (e.g. ASRCore not running), and `/unload` is idempotent. The ASRCore daemon itself keeps running; only the model is unloaded, and it lazy-loads again on the next transcription.
+
 ## Troubleshooting
 
 ### Text not appearing
@@ -141,6 +184,33 @@ Model files are owned by ASRCore. Ensure the model is available in ASRCore's mod
 systemctl --user status asr-core
 journalctl --user -fu asr-core
 ```
+
+### No beep sound (recording works, but no audio cue)
+Beeps are played via `aplay`, which targets PipeWire's **default sink**. If the
+default sink points at the wrong output (e.g. after an OS upgrade flipped a USB
+dongle from analog to its digital `iec958` profile), playback "succeeds" silently.
+
+Check and fix:
+```bash
+pactl get-default-sink          # must be the device your speakers are on
+pactl list short sinks
+pactl set-default-sink <name>
+```
+
+On this machine the intended routing is:
+- **Output** → GPU HDMI (monitor speakers); Bluetooth A2DP takes over
+  automatically when a headset connects (WirePlumber stock behavior)
+- **Input** → UGREEN USB dongle, pinned to input-only so its (unusable)
+  output can never be selected:
+  `pactl set-card-profile alsa_card.usb-JinAudio_UGREEN_USB_MIC-... input:analog-stereo`
+
+WirePlumber persists these choices across reboots.
+
+### Speakers not muted or not restored after recording
+- Ensure one of `pactl`, `wpctl`, or `amixer` is installed and on your `$PATH`
+- Check the log: `journalctl --user -fu voice-to-text`
+- If the daemon was killed with `kill -9`, mute state may not be restored; use `pactl set-sink-mute @DEFAULT_SINK@ 0` to unmute manually
+- Disable the feature by setting `MUTE_SPEAKERS_DURING_RECORDING = False` in `src/voice_to_text/config.py`
 
 ### Debug mode
 ```bash

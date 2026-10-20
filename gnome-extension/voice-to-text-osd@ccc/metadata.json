@@ -1,0 +1,7 @@
+{
+    "uuid": "voice-to-text-osd@ccc",
+    "name": "Voice-to-Text OSD",
+    "description": "Shows a large centered on-screen icon when voice-to-text recording starts (red mic) or stops (green stop). Listens for dev.voice_to_text.Recorder.StateChanged D-Bus signals emitted by the voice-to-text daemon.",
+    "version": 1,
+    "shell-version": ["45", "46", "47", "48", "49", "50"]
+}

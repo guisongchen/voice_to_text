@@ -1,0 +1,20 @@
+.vtt-osd {
+    background-color: rgba(20, 20, 24, 0.85);
+    border-radius: 24px;
+    padding: 36px 56px;
+}
+
+.vtt-osd-icon-start {
+    color: #ff4d4d;
+}
+
+.vtt-osd-icon-stop {
+    color: #7bd88f;
+}
+
+.vtt-osd-label {
+    color: #ffffff;
+    font-size: 22px;
+    font-weight: bold;
+    margin-top: 14px;
+}

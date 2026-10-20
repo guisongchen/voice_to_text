@@ -1,20 +1,25 @@
+import os
 import shutil
 import signal
 import socket
 import subprocess
 import threading
 import time
+import traceback
 from pathlib import Path
 
 from asr_core.client import ASRCoreClient
 
+from .audio_control import AudioOutputController
 from .config import (
     IDLE_CHECK_INTERVAL,
     IDLE_TIMEOUT_SECONDS,
     MIN_RECORDING_DURATION,
     MIN_TRANSITION_INTERVAL,
+    SAVE_RECORDINGS,
     SHUTDOWN_TRANSCRIBE_GRACE,
     SOCKET_PATH,
+    MUTE_SPEAKERS_DURING_RECORDING,
 )
 from .inserter import TextInserter
 from .recorder import AudioRecorder  # lightweight — no torch/numpy imports
@@ -26,13 +31,57 @@ STATE_IDLE = 'idle'
 STATE_RECORDING = 'recording'
 STATE_TRANSCRIBING = 'transcribing'
 
+_opencc = None
+
+
+def _to_simplified_chinese(text):
+    """Convert Traditional Chinese in text to Simplified; non-Chinese untouched.
+
+    Whisper often emits Traditional characters for Mandarin speech. t2s is a
+    pure character-set conversion (no phrase substitution), already-Simplified
+    text and English pass through unchanged. Falls back to the original text
+    if opencc is unavailable.
+    """
+    global _opencc
+    if not text:
+        return text
+    try:
+        if _opencc is None:
+            from opencc import OpenCC
+            _opencc = OpenCC('t2s')
+        return _opencc.convert(text)
+    except Exception as e:
+        print(f"  ⚠ OpenCC conversion failed, using original text: {e}")
+        return text
+
 
 def _play_beep(wav_path):
+    """Play a WAV file through aplay and wait for it to finish."""
+    try:
+        subprocess.run(
+            ["aplay", "-q", str(wav_path)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+    except Exception:
+        pass
+
+
+def _emit_osd_signal(state):
+    """Fire-and-forget D-Bus signal for the GNOME Shell OSD extension.
+
+    state: 'started' | 'stopped'. No-op when nothing listens on the bus
+    (extension not installed/enabled); failures are swallowed by design,
+    mirroring the beep behaviour.
+    """
     try:
         subprocess.Popen(
-            ["aplay", "-q", str(wav_path)],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            start_new_session=True
+            ["gdbus", "emit", "--session",
+             "--object-path", "/dev/voice_to_text",
+             "--signal", "dev.voice_to_text.Recorder.StateChanged", state],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
         )
     except Exception:
         pass
@@ -59,10 +108,8 @@ class VoiceToTextService:
 
         self.recorder = AudioRecorder()
         self._asr_client = ASRCoreClient(auto_start=True)
-
-    def __del__(self):
-        if hasattr(self, '_asr_client'):
-            self._asr_client.close()
+        self._audio_controller = AudioOutputController()
+        self._mute_speakers = MUTE_SPEAKERS_DURING_RECORDING
 
     @property
     def should_exit(self):
@@ -73,6 +120,10 @@ class VoiceToTextService:
     def should_exit(self, value):
         with self._lock:
             self._should_exit = value
+
+    def _request_shutdown(self, signum=None, frame=None):
+        """Signal-safe shutdown request (used as signal handler)."""
+        self.should_exit = True
 
     def initialize(self):
         print("=" * 50)
@@ -127,20 +178,34 @@ class VoiceToTextService:
         return 'BUSY'
 
     def _begin_recording(self):
-        """Worker thread: open mic, play start beep. Roll back to IDLE on failure."""
+        """Worker thread: open mic, play start beep, then mute speakers. Roll back to IDLE on failure.
+
+        Note: if the user presses toggle again during the beep (~240ms), the
+        state transitions to TRANSCRIBING and _begin_stop_action runs
+        concurrently.  The recorder's internal lock serialises start/stop,
+        and the still_recording check below prevents speaker muting after
+        the state has already moved on.
+        """
         try:
             audio_file = self.recorder.start()
             with self._lock:
                 self._current_audio_file = audio_file
                 self._recording_start_time = time.time()
+            _emit_osd_signal('started')
             _play_beep(BEEP_START)
-            print(f"\n🎤 Recording... (file: {audio_file})")
+            with self._lock:
+                still_recording = self._state == STATE_RECORDING
+            if still_recording:
+                if self._mute_speakers:
+                    if self._audio_controller.save_and_mute():
+                        print("  🔇 Speakers muted")
+                print(f"\n🎤 Recording... (file: {audio_file})")
         except Exception as e:
             print(f"  ✗ Failed to start audio recorder: {e}")
             self._force_transition(STATE_IDLE)
 
     def _begin_stop_action(self):
-        """Worker thread: close mic, play beep, dispatch transcription."""
+        """Worker thread: close mic, restore speakers, play beep, dispatch transcription."""
         with self._lock:
             audio_file = self._current_audio_file
             start_time = self._recording_start_time
@@ -148,7 +213,13 @@ class VoiceToTextService:
             self.recorder.stop()
         except Exception as e:
             print(f"  ✗ Error stopping recorder: {e}")
+
+        if self._mute_speakers:
+            if self._audio_controller.restore():
+                print("  🔊 Speakers restored")
+
         duration = time.time() - start_time if start_time else 0
+        _emit_osd_signal('stopped')
         _play_beep(BEEP_FINISH)
         print(f"\n⏹  Stopped (duration: {duration:.1f}s)")
 
@@ -196,7 +267,7 @@ class VoiceToTextService:
                 return
 
     def _graceful_shutdown(self):
-        """Salvage in-flight transcription; drop in-flight recording."""
+        """Salvage in-flight transcription; drop in-flight recording; restore speakers."""
         with self._lock:
             state = self._state
             transcribe_thread = self._transcribe_thread
@@ -210,6 +281,12 @@ class VoiceToTextService:
             print(f"Daemon exiting, waiting up to {SHUTDOWN_TRANSCRIBE_GRACE}s for transcription")
             transcribe_thread.join(timeout=SHUTDOWN_TRANSCRIBE_GRACE)
 
+        # Always attempt to restore speakers on shutdown.
+        try:
+            self._audio_controller.restore()
+        except Exception:
+            pass
+
     # ---------- Socket listener ----------
 
     def _socket_listener(self):
@@ -219,23 +296,37 @@ class VoiceToTextService:
             self.socket_path.unlink()
 
         self.server_socket.bind(str(self.socket_path))
+        # Restrict socket to owner only (single-user desktop tool).
+        os.chmod(str(self.socket_path), 0o600)
         self.server_socket.listen(1)
         self.server_socket.settimeout(1.0)
 
         while not self.should_exit:
             try:
                 conn, _ = self.server_socket.accept()
+            except socket.timeout:
+                continue
+            except OSError as e:
+                if self.should_exit:
+                    break
+                print(f"  ✗ Socket listener error: {e}")
+                traceback.print_exc()
+                break
+
+            try:
                 command = conn.recv(1024).decode('utf-8').strip()
                 if command == 'TOGGLE':
                     response = self._handle_toggle()
                 else:
                     response = f'ERROR unknown command: {command}'
                 conn.sendall((response + '\n').encode('utf-8'))
-                conn.close()
-            except socket.timeout:
-                continue
-            except Exception:
-                break
+            except Exception as e:
+                print(f"  ✗ Error handling socket command: {e}")
+            finally:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
     # ---------- run / lifecycle ----------
 
@@ -243,8 +334,8 @@ class VoiceToTextService:
         if not self.initialize():
             return 1
 
-        signal.signal(signal.SIGINT, lambda s, f: setattr(self, '_should_exit', True))
-        signal.signal(signal.SIGTERM, lambda s, f: setattr(self, '_should_exit', True))
+        signal.signal(signal.SIGINT, self._request_shutdown)
+        signal.signal(signal.SIGTERM, self._request_shutdown)
 
         threading.Thread(target=self._socket_listener, daemon=True).start()
 
@@ -285,12 +376,11 @@ class VoiceToTextService:
             print("  ✗ Error: Audio file not found")
             return
 
-        processed_file = None
         text = None
         try:
             print("🔄 Transcribing via ASRCore...")
             result = self._asr_client.transcribe(audio_file, model_name=self.model_size)
-            text = result.get("text", "").strip()
+            text = _to_simplified_chinese(result.get("text", "").strip())
 
             if not text:
                 print("  ⚠ No speech detected")
@@ -312,6 +402,8 @@ class VoiceToTextService:
 
     def _save_recording(self, audio_file, text):
         """Save recording to ~/voice_recordings/ for future model training."""
+        if not SAVE_RECORDINGS:
+            return
         try:
             archive_dir = Path.home() / "voice_recordings"
             archive_dir.mkdir(exist_ok=True)
@@ -337,6 +429,10 @@ class VoiceToTextService:
 
     def cleanup(self):
         self.should_exit = True
+        try:
+            self._audio_controller.restore()
+        except Exception:
+            pass
         self.recorder.cleanup()
         if self._asr_client:
             try:

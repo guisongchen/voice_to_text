@@ -13,6 +13,9 @@ StartLimitBurst=5
 Environment=PYTHONUNBUFFERED=1
 StandardOutput=journal
 StandardError=journal
+# 服务停止(无论 systemctl stop、idle 超时退出还是崩溃)后卸载 ASR 模型释放显存;
+# `-` 前缀忽略失败(asr-core socket 不在时无害),/unload 幂等
+ExecStopPost=-/usr/bin/curl -sf --max-time 10 --unix-socket /tmp/asr_core.sock -X POST http://localhost/unload
 
 [Install]
 WantedBy=default.target

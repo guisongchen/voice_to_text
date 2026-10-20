@@ -10,11 +10,14 @@ wheels/
 # Virtual environments
 .venv
 
-# Audio recordings
+# Audio recordings (but not the beep sound effects in scripts/)
 *.wav
+!scripts/beep_start.wav
+!scripts/beep_finish.wav
 
-# Transcriptions
+# Transcriptions (generated, not source)
 *.txt
+!doc/*.txt
 
 # others
 .claude/

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code when working in the `voice_to_text` r
 
 ## Project Overview
 
-`voice_to_text` is a system-wide voice input tool for Linux. Press a shortcut (or the LP998 Bluetooth button), speak, press again, and transcribed text is inserted at the cursor via `xdotool`.
+`voice_to_text` is a system-wide voice input tool for Linux. Press a shortcut (or the LP998 Bluetooth button), speak, press again, and transcribed text is inserted at the cursor — via `ydotool` (uinput, Wayland sessions) or `xdotool`/xclip (X11 sessions).
 
 The daemon is intentionally lightweight: it records audio and delegates transcription to the shared **ASRCore** service (`/home/ccc/projects/asr_core`) over a Unix domain socket. There are no ML imports in this repository.
 
@@ -16,7 +16,7 @@ voice_to_text/
 │   ├── cli.py              # CLI entry point
 │   ├── service.py          # Persistent daemon: recording, IPC, ASRCore client
 │   ├── recorder.py         # pyaudio-based audio recorder (no ML imports)
-│   ├── inserter.py         # xdotool text insertion
+│   ├── inserter.py         # Text insertion: ydotool (Wayland) / xclip+xdotool (X11)
 │   ├── toggle.py           # Socket client that spawns the daemon on demand
 │   └── config.py           # Constants
 ├── scripts/
@@ -96,3 +96,8 @@ The dashboard was moved into ASRCore. Open http://localhost:8125 to:
 - The LP998 listener is the only hardware-specific component.
 - Recordings are archived to `~/voice_recordings/` for future model training.
 - Use `journalctl --user -fu voice-to-text -u asr-core` for live logs.
+- Beeps use `aplay` → PipeWire default sink (failures are swallowed by design,
+  so a misrouted default sink means silent beeps, not errors). Intended routing
+  on this machine: output = GPU HDMI (BT auto-takes-over on connect), input =
+  UGREEN dongle pinned to `input:analog-stereo` profile (its output is
+  unusable and must stay hidden). See README "No beep sound".

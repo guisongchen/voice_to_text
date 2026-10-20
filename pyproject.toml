@@ -9,6 +9,7 @@ dependencies = [
     "numpy>=1.24.0",
     "evdev>=1.7.0",
     "httpx>=0.27.0",
+    "opencc-python-reimplemented>=0.1.7",
 ]
 
 [project.scripts]

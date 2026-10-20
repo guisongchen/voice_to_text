@@ -1,10 +1,14 @@
 import argparse
+import warnings
 
 from .config import MODEL_SIZE_DEFAULT, MODEL_CHOICES
 from .service import VoiceToTextService
 
 
 def main():
+    # Suppress FP16 warning that may propagate from ASRCore's model layer.
+    warnings.filterwarnings("ignore", message="FP16 is not supported on CPU")
+
     parser = argparse.ArgumentParser(
         description="Voice-to-Text Input Tool",
         formatter_class=argparse.RawDescriptionHelpFormatter,
