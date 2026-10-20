@@ -11,7 +11,9 @@ from pathlib import Path
 from asr_core.client import ASRCoreClient
 
 from .audio_control import AudioOutputController
+from .cloud_asr import CloudASRClient
 from .config import (
+    ASR_MODE,
     IDLE_CHECK_INTERVAL,
     IDLE_TIMEOUT_SECONDS,
     MIN_RECORDING_DURATION,
@@ -107,7 +109,11 @@ class VoiceToTextService:
         self._transcribe_thread = None
 
         self.recorder = AudioRecorder()
-        self._asr_client = ASRCoreClient(auto_start=True)
+        if ASR_MODE == "cloud":
+            # GPU-less mode: talk to DashScope directly, no local ASRCore.
+            self._asr_client = CloudASRClient()
+        else:
+            self._asr_client = ASRCoreClient(auto_start=True)
         self._audio_controller = AudioOutputController()
         self._mute_speakers = MUTE_SPEAKERS_DURING_RECORDING
 
@@ -137,7 +143,10 @@ class VoiceToTextService:
             return False
         print("✓ xdotool is available")
 
-        print("\n[2/2] ASRCore client ready (model loaded on first use)")
+        if ASR_MODE == "cloud":
+            print("\n[2/2] Cloud ASR client ready (DashScope qwen3-asr-flash)")
+        else:
+            print("\n[2/2] ASRCore client ready (model loaded on first use)")
 
         return True
 
@@ -378,7 +387,8 @@ class VoiceToTextService:
 
         text = None
         try:
-            print("🔄 Transcribing via ASRCore...")
+            backend = "cloud DashScope" if ASR_MODE == "cloud" else "ASRCore"
+            print(f"🔄 Transcribing via {backend}...")
             result = self._asr_client.transcribe(audio_file, model_name=self.model_size)
             text = _to_simplified_chinese(result.get("text", "").strip())
 

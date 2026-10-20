@@ -1,4 +1,11 @@
 from pathlib import Path
+import os
+
+# ASR mode: "asrcore" (default) delegates transcription to the local ASRCore
+# service over /tmp/asr_core.sock; "cloud" calls the DashScope cloud ASR
+# (qwen3-asr-flash) directly, so GPU-less machines need no local ASRCore.
+# Requires DASHSCOPE_API_KEY in the environment when set to "cloud".
+ASR_MODE = os.environ.get("VTT_ASR_MODE", "asrcore")
 
 # Audio settings
 SAMPLE_RATE = 16000
