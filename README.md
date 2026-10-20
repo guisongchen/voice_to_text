@@ -64,36 +64,67 @@ ASRCore hosts the management UI at http://localhost:8125:
 - Start/stop/restart services
 - View live logs
 
-### Cloud ASR mode (no GPU / no ASRCore)
+### Local vs Cloud ASR backends
 
-On machines without a GPU, the daemon can call the DashScope cloud ASR
-(`qwen3-asr-flash`, billed per token) directly — no local ASRCore service,
-no model files:
+The daemon supports two transcription backends, switched by `VTT_ASR_MODE`:
+
+| Mode | `VTT_ASR_MODE` | Transcription path | Requirements |
+|---|---|---|---|
+| Local (default) | `asrcore` | This daemon → ASRCore (Unix socket) → local Qwen3-ASR on GPU | NVIDIA GPU, model files, `asr-core` service |
+| Cloud | `cloud` | This daemon → DashScope `qwen3-asr-flash` (billed per token) | `DASHSCOPE_API_KEY`, network. No GPU, no model files, no `asr-core` service |
+
+Recording, beeps, OSD, and text insertion are identical in both modes; only
+the transcription backend differs. Recordings are always archived locally
+to `~/voice_recordings/`.
+
+**Privacy note:** in cloud mode, audio leaves the machine. Use local mode
+for sensitive content.
+
+#### Switching (systemd deployment)
+
+Use the toggle script — it rewrites the systemd user override and restarts
+the service:
+
+```bash
+scripts/switch-asr-mode.sh cloud   # switch to cloud (DashScope)
+scripts/switch-asr-mode.sh local   # switch to local (ASRCore + GPU model)
+scripts/switch-asr-mode.sh status  # show current mode
+```
+
+The script manages `~/.config/systemd/user/voice-to-text.service.d/cloud-asr.conf`.
+The API key is only read from `~/.bashrc` or preserved in that override —
+it is never written to any repository file. (Do **not** put the key in
+`services/voice-to-text.service` itself; that file is tracked by git.)
+
+Manual equivalent:
+
+```bash
+systemctl --user edit voice-to-text   # add Environment=VTT_ASR_MODE=cloud (or asrcore)
+systemctl --user restart voice-to-text
+```
+
+#### Manual (non-systemd) runs
 
 ```bash
 export VTT_ASR_MODE=cloud        # default: asrcore
 export DASHSCOPE_API_KEY=sk-...  # required in cloud mode
+.venv/bin/python3 -m voice_to_text
 ```
 
-For systemd, add both lines as `Environment=` entries in
-`services/voice-to-text.service`. Recording, beeps, OSD and text insertion
-are unchanged; only the transcription backend differs. Recordings are still
-archived locally to `~/voice_recordings/`.
+#### Deploying on a GPU-less machine
 
-Note: audio leaves the machine in cloud mode — use the default `asrcore`
-mode if recordings are sensitive.
+Install both repos as usual, then set `VTT_ASR_MODE=cloud` and
+`DASHSCOPE_API_KEY` (env or systemd override). You can skip the
+`asr-core` systemd service entirely — the daemon talks to DashScope
+directly.
 
-### Switching between local and cloud ASR
+#### ASRCore's own backend switch
 
-```bash
-scripts/switch-asr-mode.sh cloud   # 直连云端 DashScope
-scripts/switch-asr-mode.sh local   # 本地 ASRCore + GPU 模型
-scripts/switch-asr-mode.sh status  # 查看当前模式
-```
-
-The script rewrites the systemd user override and restarts the service.
-The API key is only read from `~/.bashrc` or preserved in the override —
-it is never written to any repository file.
+Independently, ASRCore can itself proxy to DashScope (`ASR_BACKEND=cloud`
+or `[cloud] backend = "cloud"` in `asr_core.toml` — see the ASRCore README).
+That keeps the Unix-socket API for other ASRCore clients on a GPU-less
+machine, at the cost of still running the ASRCore process. For voice input
+alone, `VTT_ASR_MODE=cloud` is the lighter option.
 
 ### Keyboard Shortcut (GNOME)
 
@@ -157,13 +188,15 @@ voice_to_text/
 │   ├── recorder.py          # AudioRecorder (no ML imports)
 │   ├── audio_control.py     # Speaker mute/restore during recording
 │   ├── inserter.py          # xdotool text insertion
+│   ├── cloud_asr.py         # CloudASRClient — direct DashScope mode (VTT_ASR_MODE=cloud)
 │   ├── service.py           # Persistent daemon with socket IPC
 │   └── toggle.py            # Start/stop toggle logic
 ├── scripts/                 # Runnable entry points
 │   ├── voice-to-text-t      # Toggle (keyboard shortcut target)
 │   ├── lp998_listener.py    # LP998 touch zone listener
 │   ├── beep_start.wav       # Start-recording beep
-│   └── beep_finish.wav      # Stop-recording beep
+│   ├── beep_finish.wav      # Stop-recording beep
+│   └── switch-asr-mode.sh   # Toggle local/cloud ASR backend + restart service
 ├── services/                # systemd unit files
 ├── doc/                     # Documentation
 │   └── voice_to_text_spec.md
