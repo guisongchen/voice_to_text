@@ -64,6 +64,25 @@ ASRCore hosts the management UI at http://localhost:8125:
 - Start/stop/restart services
 - View live logs
 
+### Cloud ASR mode (no GPU / no ASRCore)
+
+On machines without a GPU, the daemon can call the DashScope cloud ASR
+(`qwen3-asr-flash`, billed per token) directly — no local ASRCore service,
+no model files:
+
+```bash
+export VTT_ASR_MODE=cloud        # default: asrcore
+export DASHSCOPE_API_KEY=sk-...  # required in cloud mode
+```
+
+For systemd, add both lines as `Environment=` entries in
+`services/voice-to-text.service`. Recording, beeps, OSD and text insertion
+are unchanged; only the transcription backend differs. Recordings are still
+archived locally to `~/voice_recordings/`.
+
+Note: audio leaves the machine in cloud mode — use the default `asrcore`
+mode if recordings are sensitive.
+
 ### Keyboard Shortcut (GNOME)
 
 ```bash

@@ -14,7 +14,8 @@ The daemon is intentionally lightweight: it records audio and delegates transcri
 voice_to_text/
 ├── src/voice_to_text/
 │   ├── cli.py              # CLI entry point
-│   ├── service.py          # Persistent daemon: recording, IPC, ASRCore client
+│   ├── service.py          # Persistent daemon: recording, IPC, ASR client
+│   ├── cloud_asr.py        # CloudASRClient — direct DashScope mode (VTT_ASR_MODE=cloud)
 │   ├── recorder.py         # pyaudio-based audio recorder (no ML imports)
 │   ├── inserter.py         # Text insertion: ydotool (Wayland) / xclip+xdotool (X11)
 │   ├── toggle.py           # Socket client that spawns the daemon on demand
@@ -91,6 +92,9 @@ The dashboard was moved into ASRCore. Open http://localhost:8125 to:
 ## Important notes
 
 - The daemon is lightweight; heavy model loading happens in ASRCore.
+- Cloud mode: `VTT_ASR_MODE=cloud` + `DASHSCOPE_API_KEY` bypasses ASRCore entirely and
+  calls DashScope qwen3-asr-flash directly (via asr_core.cloud_transcriber) — for
+  GPU-less machines. Billed per token; audio leaves the machine.
 - `voice-to-text` auto-starts ASRCore via `ASRCoreClient(auto_start=True)` if the socket is missing.
 - Model files live in ASRCore, not in this repository. Do not store models here.
 - The LP998 listener is the only hardware-specific component.
