@@ -83,6 +83,18 @@ archived locally to `~/voice_recordings/`.
 Note: audio leaves the machine in cloud mode — use the default `asrcore`
 mode if recordings are sensitive.
 
+### Switching between local and cloud ASR
+
+```bash
+scripts/switch-asr-mode.sh cloud   # 直连云端 DashScope
+scripts/switch-asr-mode.sh local   # 本地 ASRCore + GPU 模型
+scripts/switch-asr-mode.sh status  # 查看当前模式
+```
+
+The script rewrites the systemd user override and restarts the service.
+The API key is only read from `~/.bashrc` or preserved in the override —
+it is never written to any repository file.
+
 ### Keyboard Shortcut (GNOME)
 
 ```bash
